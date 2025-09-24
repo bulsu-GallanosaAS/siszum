@@ -30,7 +30,7 @@ const app = express();
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
+    origin: process.env.CLIENT_URL || "https://siszumfront.onrender.com",
     methods: ["GET", "POST", "PUT", "DELETE"]
   }
 });
@@ -38,7 +38,7 @@ const io = new Server(server, {
 // Security middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:3000",
+  origin: process.env.CLIENT_URL || "https://siszumfront.onrender.com",
   credentials: true
 }));
 
@@ -124,7 +124,7 @@ app.use('*', (req, res) => {
   });
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || "";
 
 // Initialize database and start server
 async function startServer() {
