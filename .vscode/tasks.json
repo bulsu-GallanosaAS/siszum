@@ -1,0 +1,27 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Start Client",
+			"type": "shell",
+			"command": "npm start",
+			"group": "build",
+			"isBackground": true,
+			"problemMatcher": [],
+			"options": {
+				"cwd": "${workspaceFolder}/client"
+			}
+		},
+		{
+			"label": "Start Server",
+			"type": "shell",
+			"command": "npm start",
+			"group": "build",
+			"isBackground": true,
+			"problemMatcher": [],
+			"options": {
+				"cwd": "${workspaceFolder}/server"
+			}
+		}
+	]
+}

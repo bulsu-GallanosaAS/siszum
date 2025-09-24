@@ -1,0 +1,345 @@
+================================================================================
+                            SISZUM POS PROJECT DOCUMENTATION
+================================================================================
+
+PROJECT OVERVIEW
+================================================================================
+SISZUM POS is a comprehensive Point of Sale (POS) system designed for restaurants
+and hospitality businesses. The system consists of a React-based frontend admin
+panel and a Node.js/Express backend server with MySQL database integration.
+
+The system provides full restaurant management capabilities including:
+- Order management and processing
+- Customer account management
+- Reservation system
+- Inventory tracking
+- Timer-based services (for gaming cafes, etc.)
+- Refill tracking
+- Transaction management
+- Real-time communication via Socket.IO
+
+PROJECT STRUCTURE
+================================================================================
+
+Root Directory: c:\Users\Lenovo\Documents\Jonel\Clients\Andrei\SISZUM POS\
+
+├── client/                     # FRONTEND - React Application
+├── server/                     # BACKEND - Node.js/Express Server
+├── database/                   # DATABASE - SQL Scripts and Schema
+├── API_Documentation.md        # Complete API endpoint documentation
+├── clean_comments.ps1         # PowerShell script for code cleanup
+└── remove_comments.ps1        # PowerShell script for removing comments
+
+================================================================================
+                              FRONTEND (CLIENT)
+================================================================================
+
+Location: client/
+Technology Stack: React 19.1.1 + TypeScript + React Router + Socket.IO Client
+
+FOLDER STRUCTURE:
+----------------
+
+client/
+├── package.json               # Dependencies and scripts
+├── tsconfig.json             # TypeScript configuration
+├── start.ps1                 # PowerShell start script
+├── README.md                 # Client-specific documentation
+├── public/                   # Static assets
+│   ├── index.html           # Main HTML template
+│   ├── favicon.ico          # Website icon
+│   ├── manifest.json        # PWA manifest
+│   ├── robots.txt           # Web crawler instructions
+│   └── images/              # Public image assets
+│       └── loginPic.png     # Login page background
+├── build/                   # Production build output
+│   ├── index.html           # Built HTML
+│   ├── asset-manifest.json  # Asset mapping
+│   ├── static/              # Compiled CSS/JS/media
+│   └── images/              # Optimized images
+└── src/                     # Source code
+    ├── App.tsx              # Main application component
+    ├── App.css              # Global application styles
+    ├── index.tsx            # Application entry point
+    ├── index.css            # Global CSS styles
+    ├── react-app-env.d.ts   # TypeScript declarations
+    ├── setupTests.ts        # Test configuration
+    ├── reportWebVitals.ts   # Performance monitoring
+    ├── components/          # Reusable UI components
+    │   ├── index.ts         # Component exports
+    │   ├── Layout.tsx       # Main layout wrapper
+    │   ├── Layout.css       # Layout styling
+    │   └── ProtectedRoute.tsx # Route protection component
+    ├── context/             # React context providers
+    │   └── AuthContext.tsx  # Authentication context
+    ├── pages/               # Application pages/screens
+    │   ├── index.ts         # Page exports
+    │   ├── Login.tsx        # User authentication page
+    │   ├── Dashboard.tsx    # Main dashboard with analytics
+    │   ├── POS.tsx          # Point of sale interface
+    │   ├── Orders.tsx       # Order management
+    │   ├── Customers.tsx    # Customer management
+    │   ├── Inventory.tsx    # Inventory tracking
+    │   ├── Reservations.tsx # Reservation management
+    │   ├── Timer.tsx        # Timer services (gaming cafe)
+    │   ├── CustomerTimer.tsx # Customer timer interface
+    │   ├── Transactions.tsx # Transaction history
+    │   ├── Refills.tsx      # Refill tracking
+    │   └── Profile.tsx      # User profile management
+    ├── services/            # API communication layer
+    │   ├── index.ts         # Service exports
+    │   ├── apiClient.ts     # Axios HTTP client configuration
+    │   └── authService.ts   # Authentication service
+    ├── types/               # TypeScript type definitions
+    │   └── index.ts         # Type exports
+    └── images/              # Application images
+        ├── logo_siszum.png  # Company logo
+        └── logo.png         # Alternative logo
+
+KEY FRONTEND FEATURES:
+---------------------
+- React Router for navigation with protected routes
+- Authentication context for user session management
+- Socket.IO client for real-time updates
+- Responsive design with CSS modules
+- TypeScript for type safety
+- Axios for API communication
+- Chart.js integration via Recharts for analytics
+- Lucide React for modern icons
+- Date handling with date-fns
+
+MAIN PAGES DESCRIPTION:
+----------------------
+1. Login.tsx - Authentication interface with secure login
+2. Dashboard.tsx - Analytics overview with charts and statistics
+3. POS.tsx - Point of sale interface for order processing
+4. Orders.tsx - Order management and tracking
+5. Customers.tsx - Customer database and account management
+6. Inventory.tsx - Stock management and inventory tracking
+7. Reservations.tsx - Table reservation system
+8. Timer.tsx - Time-based service management
+9. Transactions.tsx - Financial transaction history
+10. Refills.tsx - Beverage/item refill tracking
+11. Profile.tsx - User account settings
+
+================================================================================
+                              BACKEND (SERVER)
+================================================================================
+
+Location: server/
+Technology Stack: Node.js + Express + TypeScript + MySQL2 + Socket.IO
+
+FOLDER STRUCTURE:
+----------------
+
+server/
+├── package.json             # Dependencies and build scripts
+├── tsconfig.json           # TypeScript configuration
+├── populate_customers.js   # Customer data seeding script
+├── populate_db.js          # Database population script
+├── populate_orders.js      # Order data seeding script
+├── uploads/                # File upload storage directory
+└── src/                    # Source code
+    ├── index.ts            # Server entry point and configuration
+    ├── config/             # Configuration files
+    │   └── database.ts     # MySQL database connection
+    ├── controllers/        # Request handlers (empty - using routes directly)
+    ├── middleware/         # Express middleware
+    │   ├── auth.ts         # JWT authentication middleware
+    │   └── errorHandler.ts # Global error handling
+    ├── models/             # Database models (empty - using raw SQL)
+    ├── routes/             # API route definitions
+    │   ├── auth.ts         # Authentication endpoints
+    │   ├── customers.ts    # Customer management endpoints
+    │   ├── dashboard.ts    # Dashboard statistics endpoints
+    │   ├── inventory.ts    # Inventory management endpoints
+    │   ├── orders.ts       # Order processing endpoints
+    │   ├── pos.ts          # Point of sale endpoints
+    │   ├── receipts.ts     # Receipt generation endpoints
+    │   ├── refills.ts      # Refill tracking endpoints
+    │   ├── reservations.ts # Reservation management endpoints
+    │   ├── tables.ts       # Table management endpoints
+    │   ├── timers.ts       # Timer service endpoints
+    │   └── transactions.ts # Transaction management endpoints
+    └── types/              # TypeScript type definitions
+
+KEY BACKEND FEATURES:
+--------------------
+- Express.js REST API server
+- JWT-based authentication with bcrypt password hashing
+- MySQL2 for database connectivity
+- Socket.IO for real-time communication
+- File upload handling with Multer
+- CORS configuration for cross-origin requests
+- Rate limiting for API protection
+- Helmet for security headers
+- Express validator for input validation
+- Error handling middleware
+- TypeScript for type safety
+
+API ROUTE DESCRIPTIONS:
+----------------------
+1. auth.ts - User authentication, login, logout, session management
+2. customers.ts - Customer CRUD operations, search, feedback management
+3. dashboard.ts - Analytics, statistics, revenue charts, pending orders
+4. inventory.ts - Stock management, item CRUD, low stock alerts
+5. orders.ts - Order processing, status updates, order history
+6. pos.ts - Point of sale operations, cart management, checkout
+7. receipts.ts - Receipt generation and printing functionality
+8. refills.ts - Refill tracking for beverages and consumables
+9. reservations.ts - Table reservation management, availability
+10. tables.ts - Restaurant table management and status
+11. timers.ts - Time-based service management (gaming cafe features)
+12. transactions.ts - Financial transaction processing and history
+
+SECURITY FEATURES:
+-----------------
+- JWT token-based authentication
+- Password hashing with bcrypt
+- Input validation and sanitization
+- Rate limiting to prevent abuse
+- CORS configuration
+- Security headers with Helmet
+- Protected routes with authentication middleware
+
+================================================================================
+                               DATABASE
+================================================================================
+
+Location: database/
+Database System: MySQL
+
+FILES DESCRIPTION:
+-----------------
+├── schema.sql                 # Complete database schema definition
+├── views_procedures.sql       # Database views and stored procedures
+├── insert_sample_data.sql     # Sample data for testing
+├── sample_customers_data.sql  # Customer sample data
+├── sample_menu_Items.sql      # Menu items sample data
+├── sample_reservations_data.sql # Reservation sample data
+├── reset_and_populate.sql     # Full database reset and population
+├── reset_simple.sql           # Simple database reset
+├── update_stock_quantities.sql # Stock quantity update script
+└── run_reset_script.ps1       # PowerShell script to run reset
+
+DATABASE TABLES (from schema.sql):
+---------------------------------
+
+USER MANAGEMENT:
+- admins: Admin user accounts with roles and permissions
+- customers: Customer accounts and profiles
+
+RESTAURANT MANAGEMENT:
+- restaurant_tables: Physical table management
+- categories: Menu item categories
+- menu_items: Restaurant menu with pricing and availability
+- inventory_items: Stock inventory management
+
+ORDER MANAGEMENT:
+- orders: Customer orders with status tracking
+- order_items: Individual items within orders
+- receipts: Order receipts and payment information
+
+RESERVATION SYSTEM:
+- reservations: Table reservation management
+- reservation_tables: Table assignments for reservations
+
+GAMING/TIMER FEATURES:
+- gaming_sessions: Timer-based service sessions
+- refills: Refill tracking for beverages/consumables
+
+TRANSACTION TRACKING:
+- transactions: Financial transaction records
+- payment_methods: Available payment options
+
+FEEDBACK SYSTEM:
+- customer_feedback: Customer reviews and feedback
+
+KEY DATABASE FEATURES:
+---------------------
+- Normalized relational design
+- Foreign key constraints for data integrity
+- Timestamp tracking for audit trails
+- Enum types for status management
+- Indexes for performance optimization
+- Views for complex queries
+- Stored procedures for business logic
+
+================================================================================
+                           DEVELOPMENT SETUP
+================================================================================
+
+PREREQUISITES:
+- Node.js (v16 or higher)
+- MySQL Server
+- npm or yarn package manager
+
+INSTALLATION STEPS:
+1. Clone/download the project
+2. Install frontend dependencies:
+   cd client
+   npm install
+
+3. Install backend dependencies:
+   cd server
+   npm install
+
+4. Set up MySQL database:
+   - Create database
+   - Run schema.sql
+   - Run sample data scripts
+
+5. Configure environment variables in server/.env:
+   - Database connection details
+   - JWT secret key
+   - Server port configuration
+
+RUNNING THE APPLICATION:
+-----------------------
+Frontend (React): npm start (runs on port 3000)
+Backend (Express): npm run dev (runs on port 5000)
+
+Or use VS Code tasks:
+- "Start Client" task
+- "Start Server" task
+
+================================================================================
+                              FEATURES SUMMARY
+================================================================================
+
+ADMIN FEATURES:
+- Dashboard with real-time analytics
+- Order management and processing
+- Customer account management
+- Inventory tracking and alerts
+- Reservation system
+- Transaction history
+- Timer-based services
+- Refill tracking
+- User profile management
+
+TECHNICAL FEATURES:
+- Real-time updates via WebSocket
+- Responsive web design
+- Secure authentication
+- RESTful API architecture
+- Database integrity constraints
+- File upload capabilities
+- Print receipt functionality
+- Search and filtering
+- Data visualization charts
+- Multi-user support
+
+================================================================================
+                              PROJECT STATUS
+================================================================================
+
+This is a full-stack POS system with comprehensive restaurant management
+capabilities. The system appears to be in active development with complete
+frontend and backend implementations, database schema, and API documentation.
+
+The project follows modern web development practices with TypeScript, proper
+project structure, and separation of concerns between frontend, backend, and
+database layers.
+
+================================================================================
