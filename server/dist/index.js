@@ -32,7 +32,7 @@ const app = (0, express_1.default)();
 const server = (0, http_1.createServer)(app);
 const io = new socket_io_1.Server(server, {
     cors: {
-        origin: process.env.CLIENT_URL || "http://localhost:3000",
+        origin: process.env.CLIENT_URL || "https://siszumfront.onrender.com",
         methods: ["GET", "POST", "PUT", "DELETE"]
     }
 });
@@ -40,7 +40,7 @@ exports.io = io;
 // Security middleware
 app.use((0, helmet_1.default)());
 app.use((0, cors_1.default)({
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
+    origin: process.env.CLIENT_URL || "https://siszumfront.onrender.com",
     credentials: true
 }));
 // Rate limiting
@@ -111,7 +111,7 @@ app.use('*', (req, res) => {
         message: 'Route not found'
     });
 });
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT;
 // Initialize database and start server
 async function startServer() {
     try {
