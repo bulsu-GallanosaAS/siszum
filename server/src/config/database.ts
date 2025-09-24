@@ -5,16 +5,13 @@ dotenv.config();
 
 // Database connection configuration
 const dbConfig = {
-  host: process.env.DB_HOST || 'sql.freedb.tech',
-  user: process.env.DB_USER || 'freedb_siszum_adminn',
-  password: process.env.DB_PASSWORD || '9F!VFT*8rH4pjMF',
-  database: process.env.DB_NAME || 'freedb_siszum_poss',
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0,
-  acquireTimeout: 60000,
-  timeout: 60000,
-  reconnect: true
+  queueLimit: 0
 };
 
 // Create connection pool

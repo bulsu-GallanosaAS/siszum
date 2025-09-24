@@ -124,7 +124,7 @@ app.use('*', (req, res) => {
   });
 });
 
-const PORT = process.env.PORT || "";
+const PORT = process.env.PORT || "5001";
 
 // Initialize database and start server
 async function startServer() {
