@@ -123,7 +123,7 @@ app.use('*', (req, res) => {
 });
 
 // Use environment PORT if set, fallback to 5000 for local testing
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 5000;
 
 // Initialize database and start server
 async function startServer() {

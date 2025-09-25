@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.io = void 0;
+exports.app = exports.io = void 0;
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
@@ -29,6 +29,7 @@ const database_1 = require("./config/database");
 // Load environment variables
 dotenv_1.default.config();
 const app = (0, express_1.default)();
+exports.app = app;
 const server = (0, http_1.createServer)(app);
 const io = new socket_io_1.Server(server, {
     cors: {
@@ -44,11 +45,10 @@ app.use((0, cors_1.default)({
     credentials: true
 }));
 // Rate limiting
-const limiter = (0, express_rate_limit_1.default)({
+app.use((0, express_rate_limit_1.default)({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100 // limit each IP to 100 requests per windowMs
-});
-app.use(limiter);
+    max: 100
+}));
 // Body parsing middleware
 app.use(express_1.default.json({ limit: '10mb' }));
 app.use(express_1.default.urlencoded({ extended: true, limit: '10mb' }));
@@ -85,7 +85,6 @@ app.get('/api/test', (req, res) => {
 // Socket.IO connection handling
 io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
-    // Join rooms for real-time updates
     socket.on('join-admin', () => {
         socket.join('admin');
         console.log('Admin joined:', socket.id);
@@ -111,17 +110,21 @@ app.use('*', (req, res) => {
         message: 'Route not found'
     });
 });
-const PORT = process.env.PORT;
+// Use environment PORT if set, fallback to 5000 for local testing
+const PORT = process.env.PORT || 5000;
 // Initialize database and start server
 async function startServer() {
     try {
         await (0, database_1.initDatabase)();
         console.log('Database connected successfully');
-        server.listen(PORT, () => {
-            console.log(`🚀 SISZUM POS Server running on port ${PORT}`);
-            console.log(`🌐 Health check: http://localhost:${PORT}/api/health`);
-            console.log(`📊 Environment: ${process.env.NODE_ENV}`);
-        });
+        // Only start server if running in persistent environment (Render/Railway)
+        if (PORT) {
+            server.listen(PORT, () => {
+                console.log(`🚀 SISZUM POS Server running on port ${PORT}`);
+                console.log(`🌐 Health check: http://localhost:${PORT}/api/health`);
+                console.log(`📊 Environment: ${process.env.NODE_ENV}`);
+            });
+        }
     }
     catch (error) {
         console.error('Failed to start server:', error);

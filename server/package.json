@@ -4,11 +4,12 @@
   "description": "SISZUM POS Backend Server",
   "main": "dist/index.js",
   "scripts": {
-    "start": "node dist/index.js",
-    "dev": "nodemon src/index.ts",
-    "build": "tsc",
-    "postinstall": "npm run build"
-  },
+  "build": "tsc",
+  "dev": "nodemon src/index.ts",
+  "prestart": "npm run build",
+  "start": "node dist/index.js",
+  "postinstall": "npm run build"
+},
   "keywords": [
     "pos",
     "restaurant",
