@@ -10,7 +10,7 @@ const router = express.Router();
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
+    const limit = parseInt(req.query.limit as string) || 5;
     const search = req.query.search as string || '';
     const status = req.query.status as string || 'all';
     const offset = (page - 1) * limit;
@@ -50,7 +50,7 @@ router.get('/', authenticateToken, async (req, res) => {
     `;
     queryParams.push(limit, offset);
 
-    const [customers]: any = await pool.execute(query, queryParams);
+    const [customers]: any = await pool.execute(query, [...queryParams, limit, offset]);
 
     const response: ApiResponse<Customer[]> = {
       success: true,

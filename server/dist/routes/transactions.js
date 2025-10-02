@@ -62,7 +62,7 @@ router.get('/', auth_1.authenticateToken, async (req, res) => {
       LEFT JOIN restaurant_tables rt ON o.table_id = rt.id
       ${whereClause}
       ORDER BY t.created_at DESC
-      
+      LIMIT ${limit} OFFSET ${offset}
     `;
         queryParams.push(Number(limit), offset);
         const transactions = await (0, database_1.executeQuery)(transactionsQuery, queryParams);
@@ -73,7 +73,7 @@ router.get('/', auth_1.authenticateToken, async (req, res) => {
       LEFT JOIN customers c ON t.customer_id = c.id
       LEFT JOIN orders o ON t.order_id = o.id
       ${whereClause}
-      LIMIT ${limit} OFFSET ${offset}
+      
     `;
         const countParams = queryParams.slice(0, -2); // Remove limit and offset
         const [{ total }] = await (0, database_1.executeQuery)(countQuery, countParams);

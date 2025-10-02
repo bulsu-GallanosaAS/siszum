@@ -11,7 +11,7 @@ const router = express_1.default.Router();
 router.get('/', auth_1.authenticateToken, async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 10;
+        const limit = parseInt(req.query.limit) || 5;
         const search = req.query.search || '';
         const status = req.query.status || 'all';
         const offset = (page - 1) * limit;
@@ -44,7 +44,7 @@ router.get('/', auth_1.authenticateToken, async (req, res) => {
       LIMIT ${limit} OFFSET ${offset}
     `;
         queryParams.push(limit, offset);
-        const [customers] = await database_1.pool.execute(query, queryParams);
+        const [customers] = await database_1.pool.execute(query, [...queryParams, limit, offset]);
         const response = {
             success: true,
             message: 'Customers retrieved successfully',
