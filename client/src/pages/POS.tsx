@@ -1,0 +1,882 @@
+import React, { useState, useEffect } from 'react';
+import { Plus, Minus, Search, ShoppingCart, User, X } from 'lucide-react';
+import { apiClient } from '../services';
+import { useAuth } from '../context/AuthContext';
+import './POS.css';
+
+interface MenuItem {
+  id: number;
+  product_code: string;
+  name: string;
+  description?: string;
+  selling_price: number;
+  category_id: number;
+  category_name?: string;
+  availability: string;
+  is_unlimited: boolean;
+  quantity_in_stock: number;
+  unit_type: string;
+  image_url?: string;
+}
+
+interface CartItem {
+  id: number;
+  name: string;
+  price: number;
+  quantity: number;
+  total: number;
+  discount?: number;
+}
+
+const POS: React.FC = () => {
+  const { user } = useAuth();
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [orderNumber, setOrderNumber] = useState(1);
+  const [subtotal, setSubtotal] = useState(0);
+  const [serviceCharge] = useState(20);
+  const [discount, setDiscount] = useState(0);
+  const [additionalFees, setAdditionalFees] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showTableModal, setShowTableModal] = useState(false);
+  const [customerName, setCustomerName] = useState('');
+  const [tableNumber, setTableNumber] = useState('');
+
+  useEffect(() => {
+    fetchMenuData();
+    fetchLastOrderNumber();
+  }, []);
+
+  const calculateTotals = React.useCallback(() => {
+    const newSubtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const newDiscount = cart.reduce((sum, item) => sum + (item.discount || 0), 0);
+    const newTotal = newSubtotal + serviceCharge + additionalFees - newDiscount;
+
+    setSubtotal(newSubtotal);
+    setDiscount(newDiscount);
+    setTotal(Math.max(0, newTotal));
+  }, [cart, serviceCharge, additionalFees]);
+
+  useEffect(() => {
+    calculateTotals();
+  }, [calculateTotals]);
+
+  const fetchMenuData = async () => {
+    try {
+      setLoading(true);
+      const response = await apiClient.get('/inventory/items');
+      if (response.data.success) {
+        setMenuItems(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching menu data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchLastOrderNumber = async () => {
+    try {
+      const response = await apiClient.get('/orders/stats/overview');
+      if (response.data.success) {
+        const stats = response.data.data;
+        setOrderNumber((stats.total_orders || 0) + 1);
+      }
+    } catch (error) {
+      console.error('Error fetching last order number:', error);
+    }
+  };
+
+  const addToCart = (item: MenuItem) => {
+    const price = Number(item.selling_price);
+
+    const existingItem = cart.find(cartItem => cartItem.id === item.id);
+
+    if (existingItem) {
+      setCart(cart.map(cartItem =>
+        cartItem.id === item.id
+          ? {
+              ...cartItem,
+              quantity: cartItem.quantity + 1,
+              total: Number(((cartItem.quantity + 1) * cartItem.price).toFixed(2))
+            }
+          : cartItem
+      ));
+    } else {
+      setCart([...cart, {
+        id: item.id,
+        name: item.name,
+        price: price,
+        quantity: 1,
+        total: Number(price.toFixed(2))
+      }]);
+    }
+  };
+
+  const updateCartItemQuantity = (id: number, quantity: number) => {
+    if (quantity <= 0) {
+      removeFromCart(id);
+      return;
+    }
+
+    setCart(cart.map(item =>
+      item.id === id
+        ? { ...item, quantity, total: Number((quantity * item.price).toFixed(2)) }
+        : item
+    ));
+  };
+
+  const removeFromCart = (id: number) => {
+    setCart(cart.filter(item => item.id !== id));
+  };
+
+  const applyDiscount = (type: 'senior' | 'pwd' | 'clear') => {
+    let updatedCart;
+
+    switch (type) {
+      case 'senior':
+      case 'pwd':
+        updatedCart = cart.map(item => {
+          const discountPerItem = item.price * 0.20;
+          const discountedTotal = (item.price - discountPerItem) * item.quantity;
+          return { ...item, discount: discountPerItem * item.quantity, total: Number(discountedTotal.toFixed(2)) };
+        });
+        setCart(updatedCart);
+        break;
+
+      case 'clear':
+        updatedCart = cart.map(item => ({
+          ...item,
+          discount: 0,
+          total: Number((item.price * item.quantity).toFixed(2))
+        }));
+        setCart(updatedCart);
+        break;
+
+      default:
+        break;
+    }
+  };
+
+  const applyFee = (type: 'leftover' | 'clear') => {
+    switch (type) {
+      case 'leftover':
+        setAdditionalFees(25);
+        break;
+      case 'clear':
+        setAdditionalFees(0);
+        break;
+      default:
+        setAdditionalFees(0);
+    }
+  };
+
+  const clearAll = () => {
+    setDiscount(0);
+    setAdditionalFees(0);
+  };
+
+  const resetOrder = () => {
+    setCart([]);
+    setDiscount(0);
+    setAdditionalFees(0);
+    setOrderNumber(prev => prev + 1);
+  };
+
+  const saveOrder = async () => {
+    if (cart.length === 0) {
+      alert('Please add items to cart before saving order');
+      return;
+    }
+
+    setShowTableModal(true);
+  };
+
+  const handleSaveWithTable = async () => {
+    try {
+      const orderData = {
+        customer_name: customerName || 'Walk-in Customer',
+        order_type: 'dine_in',
+        table_id: tableNumber ? parseInt(tableNumber) : null,
+        items: cart.map(item => ({
+          item_id: item.id,
+          quantity: item.quantity,
+          unit_price: item.price,
+          total_price: item.total,
+          discount: item.discount || 0
+        })),
+        subtotal: subtotal,
+        service_charge: serviceCharge,
+        additional_fees: additionalFees,
+        discount: discount,
+        total_amount: total,
+        status: 'pending'
+      };
+
+      const response = await apiClient.post('/orders', orderData);
+      if (response.data.success) {
+        alert('Order saved successfully!');
+        resetOrder();
+        setShowTableModal(false);
+        setCustomerName('');
+        setTableNumber('');
+      } else {
+        throw new Error('Failed to save order');
+      }
+    } catch (error) {
+      console.error('Order saving failed:', error);
+      alert('Order saving failed. Please try again.');
+    }
+  };
+
+  const processPayment = async () => {
+    if (cart.length === 0) {
+      alert('Please add items to cart before processing payment');
+      return;
+    }
+
+    setShowPaymentModal(true);
+  };
+
+  const handlePayment = async (paymentMethod: string) => {
+    setSelectedPaymentMethod(paymentMethod);
+  };
+
+  const processSelectedPayment = async () => {
+    if (!selectedPaymentMethod) {
+      alert('Please select a payment method');
+      return;
+    }
+
+    try {
+      const orderData = {
+        customer_name: customerName || 'Walk-in Customer',
+        order_type: 'dine_in',
+        table_id: tableNumber ? parseInt(tableNumber) : null,
+        items: cart.map(item => ({
+          item_id: item.id,
+          quantity: item.quantity,
+          unit_price: item.price,
+          total_price: item.total,
+          discount: item.discount || 0
+        })),
+        subtotal: subtotal,
+        service_charge: serviceCharge,
+        additional_fees: additionalFees,
+        discount: discount,
+        total_amount: total,
+        payment_method: selectedPaymentMethod,
+        status: 'completed'
+      };
+
+      const response = await apiClient.post('/orders', orderData);
+      if (response.data.success) {
+        alert('Payment processed successfully!');
+        resetOrder();
+        setShowPaymentModal(false);
+        setSelectedPaymentMethod('');
+        setCustomerName('');
+        setTableNumber('');
+      } else {
+        throw new Error('Failed to process payment');
+      }
+    } catch (error) {
+      console.error('Payment processing failed:', error);
+      alert('Payment processing failed. Please try again.');
+    }
+  };
+
+  const filteredMenuItems = menuItems.filter(item =>
+    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.description?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  if (loading) {
+    return (
+      <div className="pos-loading">
+        <div className="loading-spinner">Loading POS...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pos-container">
+      {}
+      <div className="pos-header">
+        <div className="logo-section">
+          <h2>Admin POS</h2>
+        </div>
+        <div className="customer-section">
+          <div className="customer-avatar">
+            <User size={24} />
+          </div>
+          <div className="customer-info">
+            <span className="customer-name">{user?.first_name || 'Admin'}</span>
+            <span className="customer-role">{user?.last_name || user?.role || 'Staff'}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="pos-main">
+        {}
+        <div className="menu-section">
+          {}
+          <div className="discount-section">
+            <h3>Discounts</h3>
+            <div className="discount-buttons">
+              <button 
+                className="discount-btn senior"
+                onClick={() => applyDiscount('senior')}
+              >
+                SENIOR<br />DISCOUNT
+              </button>
+              <button 
+                className="discount-btn pwd"
+                onClick={() => applyDiscount('pwd')}
+              >
+                PWD<br />DISCOUNT
+              </button>
+              <button 
+                className="clear-discount-btn"
+                onClick={() => applyDiscount('clear')}
+              >
+                CLEAR DISCOUNT
+              </button>
+            </div>
+
+            <h3>Additional Fees</h3>
+            <div className="charge-buttons">
+              <button 
+                className="charge-btn leftover"
+                onClick={() => applyFee('leftover')}
+              >
+                LEFT OVERS<br />FEE
+              </button>
+              <button 
+                className="clear-fee-btn"
+                onClick={() => applyFee('clear')}
+              >
+                CLEAR FEE
+              </button>
+            </div>
+
+            <div className="clear-section">
+              <button 
+                className="clear-btn"
+                onClick={() => clearAll()}
+              >
+                CLEAR ALL
+              </button>
+            </div>
+          </div>
+
+          {}
+          <div className="search-section">
+            <div className="search-box">
+              <Search size={20} />
+              <input
+                type="text"
+                placeholder="Search here..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {}
+          {searchTerm && (
+            <div className="search-results">
+              <h3>Search Results</h3>
+              <div className="search-items">
+                {filteredMenuItems.length > 0 ? (
+                  filteredMenuItems.map(item => (
+                    <button
+                      key={item.id}
+                      className="search-item"
+                      onClick={() => addToCart(item)}
+                    >
+                      <div className="search-item-name">{item.name}</div>
+                      <div className="search-item-price">₱{item.selling_price}</div>
+                    </button>
+                  ))
+                ) : (
+                  <p>No items found</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {}
+          <div className="category-section">
+            <h3>Unlimited Menu</h3>
+            <div className="category-buttons">
+              <div className="category-row">
+                <button 
+                  className="category-btn active"
+                  onClick={() => {
+                    const item = menuItems.find(item => 
+                      item.name.toLowerCase().includes('set a') || 
+                      item.name.toLowerCase().includes('unli pork')
+                    );
+                    if (item) addToCart(item);
+                  }}
+                >
+                  SET A<br />UNLI PORK
+                </button>
+                <button 
+                  className="category-btn"
+                  onClick={() => {
+                    const item = menuItems.find(item => 
+                      item.name.toLowerCase().includes('set b') || 
+                      (item.name.toLowerCase().includes('unli') && item.name.toLowerCase().includes('chicken'))
+                    );
+                    if (item) addToCart(item);
+                  }}
+                >
+                  SET B<br />UNLI PORK<br />& CHICKEN
+                </button>
+                <button 
+                  className="category-btn"
+                  onClick={() => {
+                    const item = menuItems.find(item => 
+                      item.name.toLowerCase().includes('set c') || 
+                      item.name.toLowerCase().includes('premium pork')
+                    );
+                    if (item) addToCart(item);
+                  }}
+                >
+                  SET C<br />UNLI<br />PREMIUM PORK
+                </button>
+                <button 
+                  className="category-btn"
+                  onClick={() => {
+                    const item = menuItems.find(item => 
+                      item.name.toLowerCase().includes('set d') || 
+                      (item.name.toLowerCase().includes('premium') && item.name.toLowerCase().includes('chicken'))
+                    );
+                    if (item) addToCart(item);
+                  }}
+                >
+                  SET D<br />UNLI PREMIUM PORK<br />& CHICKEN
+                </button>
+              </div>
+            </div>
+
+            <h3>Ala Carte Menu</h3>
+            <div className="category-buttons">
+              <div className="category-row">
+                <button 
+                  className="category-btn"
+                  onClick={() => {
+                    const item = menuItems.find(item => 
+                      item.name.toLowerCase().includes('samg pork') || 
+                      item.name.toLowerCase().includes('pork on cup')
+                    );
+                    if (item) addToCart(item);
+                  }}
+                >
+                  SAMG PORK<br />ON CUP
+                </button>
+                <button 
+                  className="category-btn"
+                  onClick={() => {
+                    const item = menuItems.find(item => 
+                      item.name.toLowerCase().includes('samg chicken') || 
+                      item.name.toLowerCase().includes('chicken on cup')
+                    );
+                    if (item) addToCart(item);
+                  }}
+                >
+                  SAMG CHICKEN<br />ON CUP
+                </button>
+                <button 
+                  className="category-btn"
+                  onClick={() => {
+                    const item = menuItems.find(item => 
+                      item.name.toLowerCase().includes('samg beef') || 
+                      item.name.toLowerCase().includes('beef on cup')
+                    );
+                    if (item) addToCart(item);
+                  }}
+                >
+                  SAMG BEEF<br />ON CUP
+                </button>
+                <button 
+                  className="category-btn"
+                  onClick={() => {
+                    const item = menuItems.find(item => 
+                      item.name.toLowerCase().includes('chicken poppers') ||
+                      item.product_code === 'CHICKEN-POP'
+                    );
+                    if (item) addToCart(item);
+                  }}
+                >
+                  CHICKEN<br />POPPERS ON CUP
+                </button>
+              </div>
+              <div className="category-row">
+                <button 
+                  className="category-btn"
+                  onClick={() => {
+                    const item = menuItems.find(item => 
+                      item.name.toLowerCase().includes('korean') || 
+                      item.name.toLowerCase().includes('meet')
+                    );
+                    if (item) addToCart(item);
+                  }}
+                >
+                  KOREAN MEET<br />ON CUP
+                </button>
+                <button 
+                  className="category-btn"
+                  onClick={() => {
+
+                    const item = menuItems.find(item => 
+                      item.name.toLowerCase().includes('chicken poppers') ||
+                      item.product_code === 'CHICKEN-POP'
+                    );
+                    if (item) addToCart(item);
+                  }}
+                >
+                  CHICKEN<br />POPPERS
+                </button>
+                <button 
+                  className="category-btn"
+                  onClick={() => {
+                    const item = menuItems.find(item => 
+                      item.name.toLowerCase().includes('cheese') && 
+                      !item.name.toLowerCase().includes('tub') && 
+                      !item.name.toLowerCase().includes('unli')
+                    );
+                    if (item) addToCart(item);
+                  }}
+                >
+                  CHEESE
+                </button>
+              </div>
+            </div>
+
+            <h3>Side Dishes</h3>
+            <div className="category-buttons">
+              <div className="category-row">
+                <button 
+                  className="category-btn"
+                  onClick={() => {
+                    const item = menuItems.find(item => 
+                      item.name.toLowerCase().includes('cheese') && 
+                      item.name.toLowerCase().includes('tub')
+                    );
+                    if (item) addToCart(item);
+                  }}
+                >
+                  CHEESE<br />ON TUB
+                </button>
+                <button 
+                  className="category-btn"
+                  onClick={() => {
+                    const item = menuItems.find(item => 
+                      item.name.toLowerCase().includes('fishcake') || 
+                      item.name.toLowerCase().includes('fish cake')
+                    );
+                    if (item) addToCart(item);
+                  }}
+                >
+                  FISHCAKE<br />ON TUB
+                </button>
+                <button 
+                  className="category-btn"
+                  onClick={() => {
+                    const item = menuItems.find(item => 
+                      item.name.toLowerCase().includes('eggroll') || 
+                      item.name.toLowerCase().includes('egg roll')
+                    );
+                    if (item) addToCart(item);
+                  }}
+                >
+                  EGGROLL<br />ON TUB
+                </button>
+                <button 
+                  className="category-btn"
+                  onClick={() => {
+                    const item = menuItems.find(item => 
+                      item.name.toLowerCase().includes('potatoes') || 
+                      item.name.toLowerCase().includes('potato')
+                    );
+                    if (item) addToCart(item);
+                  }}
+                >
+                  BABY POTATOES<br />ON TUB
+                </button>
+              </div>
+              <div className="category-row">
+                <button 
+                  className="category-btn"
+                  onClick={() => {
+                    const item = menuItems.find(item => 
+                      item.name.toLowerCase().includes('kimchi')
+                    );
+                    if (item) addToCart(item);
+                  }}
+                >
+                  KIMCHI<br />ON TUB
+                </button>
+              </div>
+            </div>
+
+            <h3>Ad Ons</h3>
+            <div className="category-buttons">
+              <div className="category-row">
+                <button 
+                  className="category-btn"
+                  onClick={() => {
+                    const item = menuItems.find(item => 
+                      item.name.toLowerCase().includes('unli cheese') || 
+                      (item.name.toLowerCase().includes('unlimited') && item.name.toLowerCase().includes('cheese'))
+                    );
+                    if (item) addToCart(item);
+                  }}
+                >
+                  UNLI CHEESE
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {}
+        <div className="cart-section">
+          <div className="order-header">
+            <h3>ORDER # {orderNumber.toString().padStart(4, '0')}</h3>
+          </div>
+
+          <div className="cart-items">
+            {cart.length === 0 ? (
+              <div className="empty-cart">
+                <ShoppingCart size={48} />
+                <p>No items in cart</p>
+              </div>
+            ) : (
+              cart.map((item) => (
+                <div key={item.id} className="cart-item cart-item-selected">
+                  <div className="cart-item-content">
+                    <div className="cart-item-text">
+                      {item.name}
+                      <span className="cart-item-quantity">{item.quantity}</span>
+                    </div>
+                    <div className="cart-item-controls">
+                      <button
+                        className="qty-btn"
+                        onClick={() => updateCartItemQuantity(item.id, item.quantity - 1)}
+                      >
+                        <Minus size={12} />
+                      </button>
+                      <span className="qty">{item.quantity}</span>
+                      <button
+                        className="qty-btn"
+                        onClick={() => updateCartItemQuantity(item.id, item.quantity + 1)}
+                      >
+                        <Plus size={12} />
+                      </button>
+                      <button
+                        className="cart-item-remove"
+                        onClick={() => removeFromCart(item.id)}
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="cart-item-price">
+                    ₱{(item.total || 0).toFixed(2)}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="order-summary">
+            <div className="summary-row">
+              <span>SUBTOTAL:</span>
+              <span>₱{subtotal.toFixed(2)}</span>
+            </div>
+            <div className="summary-row">
+              <span>SERVICE CHARGE:</span>
+              <span>₱{serviceCharge.toFixed(2)}</span>
+            </div>
+            {discount > 0 && (
+              <div className="summary-row discount-row">
+                <span>DISCOUNT:</span>
+                <span>-₱{discount.toFixed(2)}</span>
+              </div>
+            )}
+            {additionalFees > 0 && (
+              <div className="summary-row fees-row">
+                <span>LEFTOVER FEE:</span>
+                <span>+₱{additionalFees.toFixed(2)}</span>
+              </div>
+            )}
+            <div className="summary-row total">
+              <span>TOTAL</span>
+              <span>₱{total.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div className="action-buttons">
+            <button className="save-btn" onClick={saveOrder}>SAVE</button>
+            <button className="payment-btn" onClick={processPayment}>
+              PAYMENT
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {}
+      {showTableModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>Table Information</h2>
+              <button className="close-btn" onClick={() => setShowTableModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label htmlFor="tableNumber">Table Number</label>
+                <input
+                  type="text"
+                  id="tableNumber"
+                  value={tableNumber}
+                  onChange={(e) => setTableNumber(e.target.value)}
+                  placeholder="Enter table number"
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="customerName">Customer Name</label>
+                <input
+                  type="text"
+                  id="customerName"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Enter customer name"
+                />
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button className="cancel-btn" onClick={() => setShowTableModal(false)}>
+                Cancel
+              </button>
+              <button className="save-btn" onClick={handleSaveWithTable}>
+                Save Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {}
+      {showPaymentModal && (
+        <div className="modal-overlay">
+          <div className="modal-content payment-modal">
+            <div className="modal-header">
+              <h2>Payment Method</h2>
+              <button className="close-btn" onClick={() => setShowPaymentModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="order-summary-modal">
+                <div className="receipt-info">
+                  <h3>Order Receipt</h3>
+                  <div className="receipt-details">
+                    <div className="receipt-row">
+                      <span>Order #:</span>
+                      <span>{orderNumber.toString().padStart(4, '0')}</span>
+                    </div>
+                    <div className="receipt-row">
+                      <span>Customer:</span>
+                      <span>{customerName || 'Walk-in Customer'}</span>
+                    </div>
+                    <div className="receipt-row">
+                      <span>Table:</span>
+                      <span>{tableNumber || 'N/A'}</span>
+                    </div>
+                  </div>
+
+                  <div className="receipt-items">
+                    {cart.map((item) => (
+                      <div key={item.id} className="receipt-item">
+                        <div className="item-info">
+                          <span className="item-name">{item.name}</span>
+                          <span className="item-qty">x{item.quantity}</span>
+                        </div>
+                        <span className="item-price">₱{item.total.toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="receipt-totals">
+                    <div className="total-row">
+                      <span>Subtotal:</span>
+                      <span>₱{subtotal.toFixed(2)}</span>
+                    </div>
+                    <div className="total-row">
+                      <span>Service Charge:</span>
+                      <span>₱{serviceCharge.toFixed(2)}</span>
+                    </div>
+                    {discount > 0 && (
+                      <div className="total-row discount-row">
+                        <span>Discount:</span>
+                        <span>-₱{discount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {additionalFees > 0 && (
+                      <div className="total-row fees-row">
+                        <span>Leftover Fee:</span>
+                        <span>+₱{additionalFees.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="total-row final-total">
+                      <span>Total:</span>
+                      <span>₱{total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="payment-methods">
+                <h3>Select Payment Method</h3>
+                <div className="payment-buttons">
+                  <button 
+                    className={`payment-method-btn cash ${selectedPaymentMethod === 'cash' ? 'selected' : ''}`}
+                    onClick={() => handlePayment('cash')}
+                  >
+                    💵 Cash
+                  </button>
+                  <button 
+                    className={`payment-method-btn card ${selectedPaymentMethod === 'card' ? 'selected' : ''}`}
+                    onClick={() => handlePayment('card')}
+                  >
+                    
+                    📱 GCash
+                  </button>
+                </div>
+                {selectedPaymentMethod && (
+                  <div className="payment-action">
+                    <button 
+                      className="pay-button"
+                      onClick={processSelectedPayment}
+                    >
+                      Pay ₱{total.toFixed(2)}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default POS;

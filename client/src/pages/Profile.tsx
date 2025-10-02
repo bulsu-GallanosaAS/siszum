@@ -1,0 +1,386 @@
+import React, { useState } from 'react';
+import { User, Mail, Shield, Calendar, Settings, Camera, Edit, Save, X } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { authService, ProfileUpdateData } from '../services/authService';
+import './Profile.css';
+
+const Profile: React.FC = () => {
+  const { user, updateUser } = useAuth();
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formData, setFormData] = useState({
+    first_name: user?.first_name || '',
+    last_name: user?.last_name || '',
+    email: user?.email || '',
+    username: user?.username || '',
+    phone: user?.phone || '',
+    city: user?.city || '',
+    country: user?.country || 'Philippines'
+  });
+
+  React.useEffect(() => {
+    if (user) {
+      setFormData({
+        first_name: user.first_name || '',
+        last_name: user.last_name || '',
+        email: user.email || '',
+        username: user.username || '',
+        phone: user.phone || '',
+        city: user.city || '',
+        country: user.country || 'Philippines'
+      });
+    }
+  }, [user]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      console.log('Form data before save:', formData);
+
+      const updateData: ProfileUpdateData = {};
+
+      if (formData.first_name && formData.first_name.trim() !== '') {
+        updateData.first_name = formData.first_name.trim();
+      }
+      if (formData.last_name && formData.last_name.trim() !== '') {
+        updateData.last_name = formData.last_name.trim();
+      }
+      if (formData.phone && formData.phone.trim() !== '') {
+        updateData.phone = formData.phone.trim();
+      }
+      if (formData.city && formData.city.trim() !== '') {
+        updateData.city = formData.city.trim();
+      }
+      if (formData.country && formData.country.trim() !== '') {
+        updateData.country = formData.country.trim();
+      }
+
+      console.log('Update data being sent:', updateData);
+
+      if (Object.keys(updateData).length === 0) {
+        alert('No changes to save.');
+        setIsEditing(false);
+        return;
+      }
+
+      const response = await authService.updateProfile(updateData);
+      console.log('Response from server:', response);
+
+      if (response.success) {
+
+        updateUser(response.data);
+
+        setFormData({
+          first_name: response.data.first_name || '',
+          last_name: response.data.last_name || '',
+          email: response.data.email || '',
+          username: response.data.username || '',
+          phone: response.data.phone || '',
+          city: response.data.city || '',
+          country: response.data.country || 'Philippines'
+        });
+
+        setIsEditing(false);
+        alert('Profile updated successfully!');
+      } else {
+        alert('Failed to update profile. Please try again.');
+      }
+    } catch (error: any) {
+      console.error('Error updating profile:', error);
+
+      if (error.response?.data?.message) {
+        alert(`Error: ${error.response.data.message}`);
+      } else if (error.response?.data?.error) {
+        const validationErrors = error.response.data.error.map((e: any) => e.msg).join(', ');
+        alert(`Validation Error: ${validationErrors}`);
+      } else {
+        alert('An error occurred while updating your profile. Please try again.');
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setFormData({
+      first_name: user?.first_name || '',
+      last_name: user?.last_name || '',
+      email: user?.email || '',
+      username: user?.username || '',
+      phone: user?.phone || '',
+      city: user?.city || '',
+      country: user?.country || 'Philippines'
+    });
+    setIsEditing(false);
+  };
+
+  return (
+    <div className="profile-page">
+      <div className="profile-header">
+        <h1>Admin Profile Page</h1>
+        <div className="profile-actions">
+          {!isEditing ? (
+            <button className="edit-profile-btn" onClick={() => setIsEditing(true)}>
+              <Edit size={16} />
+              Edit Profile
+            </button>
+          ) : (
+            <div className="edit-actions">
+              <button 
+                className="save-btn" 
+                onClick={handleSave}
+                disabled={isSaving}
+              >
+                <Save size={16} />
+                {isSaving ? 'Saving...' : 'Save'}
+              </button>
+              <button 
+                className="cancel-btn" 
+                onClick={handleCancel}
+                disabled={isSaving}
+              >
+                <X size={16} />
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="profile-content">
+        <div className="profile-card">
+          <div className="profile-banner">
+            <div className="profile-image-section">
+              <div className="profile-avatar">
+                {user?.avatar_url ? (
+                  <img src={user.avatar_url} alt={user.first_name} />
+                ) : (
+                  <div className="avatar-placeholder">
+                    <User size={40} />
+                  </div>
+                )}
+                <button className="change-photo-btn">
+                  <Camera size={16} />
+                </button>
+              </div>
+              <div className="profile-basic-info">
+                <h2>{user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}` : user?.username}</h2>
+                <p className="role-badge">
+                  <Shield size={14} />
+                  {user?.role || 'Admin'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="profile-details">
+            <div className="profile-section">
+              <h3>Account Settings</h3>
+              <div className="profile-form">
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="first_name">First Name</label>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        id="first_name"
+                        name="first_name"
+                        value={formData.first_name}
+                        onChange={handleInputChange}
+                        placeholder="Enter first name"
+                      />
+                    ) : (
+                      <div className="form-value">{formData.first_name || 'Not provided'}</div>
+                    )}
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="last_name">Last Name</label>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        id="last_name"
+                        name="last_name"
+                        value={formData.last_name}
+                        onChange={handleInputChange}
+                        placeholder="Enter last name"
+                      />
+                    ) : (
+                      <div className="form-value">{formData.last_name || 'Not provided'}</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="email">Email Address</label>
+                    {isEditing ? (
+                      <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        value={formData.email}
+                        onChange={handleInputChange}
+                        placeholder="Enter email address"
+                      />
+                    ) : (
+                      <div className="form-value">{formData.email || 'Not provided'}</div>
+                    )}
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="username">Username</label>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        id="username"
+                        name="username"
+                        value={formData.username}
+                        onChange={handleInputChange}
+                        placeholder="Enter username"
+                      />
+                    ) : (
+                      <div className="form-value">{formData.username || 'Not provided'}</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="phone">Phone Number</label>
+                    {isEditing ? (
+                      <input
+                        type="tel"
+                        id="phone"
+                        name="phone"
+                        value={formData.phone}
+                        onChange={handleInputChange}
+                        placeholder="Enter phone number"
+                      />
+                    ) : (
+                      <div className="form-value">{formData.phone || 'Not provided'}</div>
+                    )}
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="city">City</label>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        id="city"
+                        name="city"
+                        value={formData.city}
+                        onChange={handleInputChange}
+                        placeholder="Enter city"
+                      />
+                    ) : (
+                      <div className="form-value">{formData.city || 'Not provided'}</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="country">Country</label>
+                    {isEditing ? (
+                      <select
+                        id="country"
+                        name="country"
+                        value={formData.country}
+                        onChange={handleInputChange}
+                      >
+                        <option value="Philippines">Philippines</option>
+                        <option value="United States">United States</option>
+                        <option value="Canada">Canada</option>
+                        <option value="United Kingdom">United Kingdom</option>
+                        <option value="Australia">Australia</option>
+                        <option value="Japan">Japan</option>
+                        <option value="South Korea">South Korea</option>
+                        <option value="Singapore">Singapore</option>
+                        <option value="Malaysia">Malaysia</option>
+                        <option value="Thailand">Thailand</option>
+                      </select>
+                    ) : (
+                      <div className="form-value">{formData.country}</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="profile-section">
+              <h3>Profile Statistics</h3>
+              <div className="stats-grid">
+                <div className="stat-item">
+                  <div className="stat-icon">
+                    <Calendar size={20} />
+                  </div>
+                  <div className="stat-content">
+                    <span className="stat-label">Member Since</span>
+                    <span className="stat-value">January 2024</span>
+                  </div>
+                </div>
+                <div className="stat-item">
+                  <div className="stat-icon">
+                    <Settings size={20} />
+                  </div>
+                  <div className="stat-content">
+                    <span className="stat-label">Account Type</span>
+                    <span className="stat-value">Administrator</span>
+                  </div>
+                </div>
+                <div className="stat-item">
+                  <div className="stat-icon">
+                    <Shield size={20} />
+                  </div>
+                  <div className="stat-content">
+                    <span className="stat-label">Access Level</span>
+                    <span className="stat-value">Full Access</span>
+                  </div>
+                </div>
+                <div className="stat-item">
+                  <div className="stat-icon">
+                    <Mail size={20} />
+                  </div>
+                  <div className="stat-content">
+                    <span className="stat-label">Email Status</span>
+                    <span className="stat-value">Verified</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="profile-section">
+              <h3>Recent Activity</h3>
+              <div className="activity-list">
+                <div className="activity-item">
+                  <div className="activity-time">2 hours ago</div>
+                  <div className="activity-description">Updated inventory item: Korean BBQ Set</div>
+                </div>
+                <div className="activity-item">
+                  <div className="activity-time">1 day ago</div>
+                  <div className="activity-description">Added new customer: John Doe</div>
+                </div>
+                <div className="activity-item">
+                  <div className="activity-time">3 days ago</div>
+                  <div className="activity-description">Generated sales report for December</div>
+                </div>
+                <div className="activity-item">
+                  <div className="activity-time">1 week ago</div>
+                  <div className="activity-description">Updated restaurant table layout</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Profile;

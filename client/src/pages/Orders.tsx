@@ -1,0 +1,581 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { Package, Search, Calendar, DollarSign, ShoppingCart, X, ArrowLeft, Edit, CreditCard } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { apiClient } from '../services';
+import './Orders.css';
+
+interface Order {
+  id: number;
+  order_code: string;
+  customer_id: number;
+  customer_name: string;
+  order_type: string;
+  subtotal: string | number;
+  total_amount: string | number;
+  status: 'pending' | 'completed' | 'cancelled';
+  payment_status: string;
+  order_date: string;
+  order_time: string;
+  completed_at?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+  item_count: number;
+  table_no?: number;
+  table_code?: string;
+  quantity?: number;
+}
+
+interface OrderStats {
+  total_orders: number;
+  completed_orders: number;
+  pending_orders: number;
+  total_revenue: string | number;
+  today_orders: number;
+  today_revenue: string | number;
+}
+
+const Orders: React.FC = () => {
+  const navigate = useNavigate();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [stats, setStats] = useState<OrderStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const fetchOrdersData = useCallback(async () => {
+    try {
+      setLoading(true);
+      console.log('Fetching orders data...');
+      console.log('API params:', {
+        page: currentPage,
+        limit: itemsPerPage,
+        search: debouncedSearchTerm,
+        status: statusFilter
+      });
+
+      const [ordersResponse, statsResponse] = await Promise.all([
+        apiClient.get('/orders', {
+          params: {
+            page: currentPage,
+            limit: itemsPerPage,
+            search: debouncedSearchTerm,
+            status: statusFilter
+          }
+        }),
+        apiClient.get('/orders/stats/overview')
+      ]);
+
+      console.log('Orders response:', ordersResponse.data);
+      console.log('Stats response:', statsResponse.data);
+
+      if (ordersResponse.data.success) {
+        setOrders(ordersResponse.data.data || []);
+        if (ordersResponse.data.pagination) {
+          setTotalItems(ordersResponse.data.pagination.total || ordersResponse.data.pagination.totalItems || 0);
+          setTotalPages(ordersResponse.data.pagination.totalPages || 0);
+        }
+      } else {
+        console.error('Orders API response not successful:', ordersResponse.data);
+        setOrders([]);
+      }
+      if (statsResponse.data.success) {
+        setStats(statsResponse.data.data);
+      } else {
+        console.error('Stats API response not successful:', statsResponse.data);
+      }
+    } catch (error: any) {
+      console.error('Error fetching orders data:', error);
+      console.error('Error details:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      console.error('Error message:', error.message);
+
+      if (error.response?.status === 401) {
+        console.error('Authentication failed - redirecting to login');
+
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+        return;
+      }
+
+      setOrders([]);
+      setTotalItems(0);
+      setTotalPages(0);
+      setStats({
+        total_orders: 0,
+        completed_orders: 0,
+        pending_orders: 0,
+        total_revenue: 0,
+        today_orders: 0,
+        today_revenue: 0
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage, itemsPerPage, debouncedSearchTerm, statusFilter]);
+
+  useEffect(() => {
+    fetchOrdersData();
+  }, [fetchOrdersData]);
+
+  const handleViewOrder = (order: Order) => {
+    setSelectedOrder(order);
+    setShowViewModal(true);
+  };
+
+  const handleEditOrder = (order: Order) => {
+    // Navigate to POS page with order data for editing
+    navigate('/pos', { state: { editOrder: order } });
+  };
+
+  const handlePaymentOrder = (order: Order) => {
+    if (order.status === 'completed') {
+      alert('This order has already been paid.');
+      return;
+    }
+    setSelectedOrder(order);
+    setShowPaymentModal(true);
+    setSelectedPaymentMethod('');
+  };
+
+  const handlePaymentMethod = (paymentMethod: string) => {
+    setSelectedPaymentMethod(paymentMethod);
+  };
+
+  const processOrderPayment = async () => {
+    if (!selectedOrder || !selectedPaymentMethod) {
+      alert('Please select a payment method');
+      return;
+    }
+
+    try {
+      // Process the payment
+      const response = await apiClient.put(`/orders/${selectedOrder.id}`, {
+        status: 'completed',
+        payment_status: 'paid',
+        payment_method: selectedPaymentMethod
+      });
+
+      if (response.data.success) {
+        alert('Payment processed successfully!');
+        setShowPaymentModal(false);
+        setSelectedPaymentMethod('');
+        setSelectedOrder(null);
+        fetchOrdersData();
+      } else {
+        throw new Error('Failed to process payment');
+      }
+    } catch (error) {
+      console.error('Payment processing failed:', error);
+      alert('Payment processing failed. Please try again.');
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const handleItemsPerPageChange = (newItemsPerPage: number) => {
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1);
+  };
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchTerm, statusFilter]);
+
+  const formatDate = (dateString: string | undefined) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString();
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'completed':
+        return '#4CAF50';
+      case 'pending':
+        return '#FF9800';
+      case 'cancelled':
+        return '#F44336';
+      default:
+        return '#9E9E9E';
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    return status.charAt(0).toUpperCase() + status.slice(1);
+  };
+
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner"></div>
+        <p>Loading orders data...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="orders-page">
+      <div className="page-header">
+        <h1>Order List</h1>
+        <div className="header-actions">
+          <button className="back-btn" onClick={() => navigate(-1)}>
+            <ArrowLeft size={20} />
+            Back
+          </button>
+        </div>
+      </div>
+
+      {}
+      {stats && (
+        <div className="stats-container">
+          <div className="stat-card">
+            <div className="stat-icon">
+              <Package size={24} />
+            </div>
+            <div className="stat-info">
+              <h3>Total Orders</h3>
+              <div className="stat-value">{stats.total_orders || 0}</div>
+            </div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-icon">
+              <ShoppingCart size={24} />
+            </div>
+            <div className="stat-info">
+              <h3>Completed</h3>
+              <div className="stat-value">{stats.completed_orders || 0}</div>
+            </div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-icon">
+              <Calendar size={24} />
+            </div>
+            <div className="stat-info">
+              <h3>Pending</h3>
+              <div className="stat-value">{stats.pending_orders || 0}</div>
+            </div>
+          </div>
+
+          <div className="stat-card">
+            <div className="stat-icon">
+              <DollarSign size={24} />
+            </div>
+            <div className="stat-info">
+              <h3>Total Revenue</h3>
+              <div className="stat-value">₱{(Number(stats.total_revenue) || 0).toFixed(2)}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {}
+      <div className="filters-container">
+        <div className="search-container">
+          <Search size={20} />
+          <input
+            type="text"
+            placeholder="Search orders..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="search-input"
+          />
+        </div>
+
+        <div className="filter-group">
+          <label>Status:</label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="filter-select"
+          >
+            <option value="all">All Status</option>
+            <option value="completed">Completed</option>
+            <option value="pending">Pending</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+
+        <div className="items-per-page">
+          <label>Show:</label>
+          <select
+            value={itemsPerPage}
+            onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+            className="items-select"
+          >
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+          <span>items per page</span>
+        </div>
+      </div>
+
+      {}
+      <div className="results-info">
+        <span>Orders Found: {totalItems}</span>
+      </div>
+
+      {}
+      <div className="table-container">
+        <table className="orders-table">
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>Customer</th>
+              <th>Status</th>
+              <th>Table No</th>
+              <th>Table Code</th>
+              <th>Items</th>
+              <th>Order Date</th>
+              <th>Total Amount</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {orders.map((order) => (
+              <tr key={order.id}>
+                <td className="order-id">{order.order_code || order.id}</td>
+                <td className="customer-id">{order.customer_name || `#${order.customer_id}`}</td>
+                <td className="status">
+                  <span 
+                    className="status-badge"
+                    style={{ backgroundColor: getStatusColor(order.status) }}
+                  >
+                    {getStatusText(order.status)}
+                  </span>
+                </td>
+                <td className="table-no">{order.table_no || 'N/A'}</td>
+                <td className="table-code">{order.table_code || 'N/A'}</td>
+                <td className="quantity">{order.quantity || order.item_count || 0}</td>
+                <td className="order-date">{formatDate(order.order_date || order.created_at)}</td>
+                <td className="total-amount">₱{(Number(order.total_amount) || 0).toFixed(2)}</td>
+                <td>
+                  <div className="action-buttons">
+                    <button className="view-btn" onClick={() => handleViewOrder(order)}>
+                      View
+                    </button>
+                    <button 
+                      className="edit-btn" 
+                      onClick={() => handleEditOrder(order)}
+                      disabled={order.status === 'completed'}
+                    >
+                      <Edit size={14} />
+                      Edit
+                    </button>
+                    <button 
+                      className="payment-btn" 
+                      onClick={() => handlePaymentOrder(order)}
+                      disabled={order.status === 'completed'}
+                    >
+                      <CreditCard size={14} />
+                      Payment
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {orders.length === 0 && (
+          <div className="empty-state">
+            <p>No orders found.</p>
+          </div>
+        )}
+      </div>
+
+      {}
+      {totalPages > 1 && (
+        <div className="pagination-container">
+          <div className="pagination-info">
+            Page {currentPage} of {totalPages}
+          </div>
+
+          <div className="pagination-controls">
+            <button 
+              className="pagination-btn"
+              onClick={handlePreviousPage}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </button>
+
+            <button 
+              className="pagination-btn"
+              onClick={handleNextPage}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+
+      {}
+      {showViewModal && selectedOrder && (
+        <div className="modal-overlay" onClick={() => setShowViewModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Order Details</h2>
+              <button className="close-btn" onClick={() => setShowViewModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div className="view-details">
+                <div className="detail-grid">
+                  <div className="detail-item">
+                    <label>Order ID:</label>
+                    <span>{selectedOrder.order_code || selectedOrder.id}</span>
+                  </div>
+
+                  <div className="detail-item">
+                    <label>Customer:</label>
+                    <span>{selectedOrder.customer_name}</span>
+                  </div>
+
+                  <div className="detail-item">
+                    <label>Status:</label>
+                    <span 
+                      className="status-badge"
+                      style={{ backgroundColor: getStatusColor(selectedOrder.status) }}
+                    >
+                      {getStatusText(selectedOrder.status)}
+                    </span>
+                  </div>
+
+                  <div className="detail-item">
+                    <label>Total Amount:</label>
+                    <span>₱{(Number(selectedOrder.total_amount) || 0).toFixed(2)}</span>
+                  </div>
+
+                  <div className="detail-item">
+                    <label>Order Date:</label>
+                    <span>{formatDate(selectedOrder.order_date || selectedOrder.created_at)}</span>
+                  </div>
+
+                  <div className="detail-item">
+                    <label>Items Count:</label>
+                    <span>{selectedOrder.item_count || 0}</span>
+                  </div>
+
+                  {selectedOrder.notes && (
+                    <div className="detail-item full-width">
+                      <label>Notes:</label>
+                      <span>{selectedOrder.notes}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {}
+      {showPaymentModal && selectedOrder && (
+        <div className="modal-overlay" onClick={() => setShowPaymentModal(false)}>
+          <div className="modal-content payment-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Process Payment</h2>
+              <button className="close-btn" onClick={() => setShowPaymentModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="order-summary-modal">
+                <div className="receipt-info">
+                  <h3>Order Summary</h3>
+                  <div className="receipt-details">
+                    <div className="receipt-row">
+                      <span>Order #:</span>
+                      <span>{selectedOrder.order_code || selectedOrder.id}</span>
+                    </div>
+                    <div className="receipt-row">
+                      <span>Customer:</span>
+                      <span>{selectedOrder.customer_name || 'Walk-in Customer'}</span>
+                    </div>
+                    <div className="receipt-row">
+                      <span>Table:</span>
+                      <span>{selectedOrder.table_no || 'N/A'}</span>
+                    </div>
+                    <div className="receipt-row final-total">
+                      <span>Total:</span>
+                      <span>₱{(Number(selectedOrder.total_amount) || 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="payment-methods">
+                <h3>Select Payment Method</h3>
+                <div className="payment-buttons">
+                  <button 
+                    className={`payment-method-btn cash ${selectedPaymentMethod === 'cash' ? 'selected' : ''}`}
+                    onClick={() => handlePaymentMethod('cash')}
+                  >
+                    💵 Cash
+                  </button>
+                  <button 
+                    className={`payment-method-btn card ${selectedPaymentMethod === 'card' ? 'selected' : ''}`}
+                    onClick={() => handlePaymentMethod('card')}
+                  >
+                    💳 Card
+                  </button>
+                  <button 
+                    className={`payment-method-btn gcash ${selectedPaymentMethod === 'gcash' ? 'selected' : ''}`}
+                    onClick={() => handlePaymentMethod('gcash')}
+                  >
+                    📱 GCash
+                  </button>
+                </div>
+                {selectedPaymentMethod && (
+                  <div className="payment-action">
+                    <button 
+                      className="pay-button"
+                      onClick={processOrderPayment}
+                    >
+                      Pay ₱{(Number(selectedOrder.total_amount) || 0).toFixed(2)}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Orders;

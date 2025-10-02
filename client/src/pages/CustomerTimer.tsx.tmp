@@ -1,0 +1,347 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { Clock, User, Square, Trash2, Plus } from 'lucide-react';
+import { apiClient as api } from '../services';
+import './CustomerTimer.css';
+
+interface Timer {
+  id: number;
+  customer_name: string;
+  table_id: number;
+  order_id: number | null;
+  start_time: string;
+  end_time: string | null;
+  elapsed_seconds: number;
+  current_elapsed_seconds: number;
+  is_active: boolean;
+  table_number: string;
+  table_code: string;
+  order_code: string | null;
+  timer_status: 'active' | 'warning' | 'expired' | 'completed';
+}
+
+interface TimerStats {
+  total_timers: number;
+  active_timers: number;
+  expired_timers: number;
+  warning_timers: number;
+}
+
+interface NewTimer {
+  customer_name: string;
+  table_id: number;
+  order_id?: number;
+}
+
+const CustomerTimer: React.FC = () => {
+  const [timers, setTimers] = useState<Timer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<TimerStats>({
+    total_timers: 0,
+    active_timers: 0,
+    expired_timers: 0,
+    warning_timers: 0
+  });
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newTimer, setNewTimer] = useState<NewTimer>({
+    customer_name: '',
+    table_id: 0
+  });
+  const [availableTables, setAvailableTables] = useState<{id: number, table_number: string}[]>([]);
+
+  const fetchTimers = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/timers?is_active=true');
+      
+      if (response.data.success) {
+        setTimers(response.data.data.timers);
+        setStats(response.data.data.stats);
+      }
+    } catch (error) {
+      console.error('Error fetching timers:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const fetchAvailableTables = useCallback(async () => {
+    try {
+      const response = await api.get('/tables?status=available');
+      if (response.data.success) {
+        setAvailableTables(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching available tables:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTimers();
+    fetchAvailableTables();
+    
+    // Set up auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      fetchTimers();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [fetchTimers, fetchAvailableTables]);
+
+  const createTimer = async () => {
+    try {
+      if (!newTimer.customer_name || !newTimer.table_id) {
+        alert('Please fill in all required fields');
+        return;
+      }
+
+      await api.post('/timers', newTimer);
+      setShowAddForm(false);
+      setNewTimer({ customer_name: '', table_id: 0 });
+      fetchTimers();
+      fetchAvailableTables();
+    } catch (error) {
+      console.error('Error creating timer:', error);
+      alert('Failed to create timer');
+    }
+  };
+
+  const stopTimer = async (id: number) => {
+    try {
+      await api.put(`/timers/${id}/stop`);
+      fetchTimers();
+      fetchAvailableTables();
+    } catch (error) {
+      console.error('Error stopping timer:', error);
+      alert('Failed to stop timer');
+    }
+  };
+
+  const deleteTimer = async (id: number) => {
+    try {
+      if (window.confirm('Are you sure you want to delete this timer?')) {
+        await api.delete(`/timers/${id}`);
+        fetchTimers();
+        fetchAvailableTables();
+      }
+    } catch (error) {
+      console.error('Error deleting timer:', error);
+      alert('Failed to delete timer');
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  const getTimerColor = (status: string) => {
+    switch (status) {
+      case 'expired':
+        return '#ef4444'; // Red
+      case 'warning':
+        return '#f59e0b'; // Orange
+      case 'active':
+        return '#10b981'; // Green
+      default:
+        return '#6b7280'; // Gray
+    }
+  };
+
+  const getTimeRemaining = (elapsedSeconds: number) => {
+    const maxTime = 7200; // 2 hours in seconds
+    const remaining = maxTime - elapsedSeconds;
+    
+    if (remaining <= 0) {
+      return 'EXPIRED';
+    }
+    
+    return formatTime(remaining);
+  };
+
+  if (loading) {
+    return (
+      <div className="timer-page">
+        <div className="loading-spinner">Loading timers...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="timer-page">
+      <div className="page-header">
+        <h1>Customer Timers</h1>
+        <div className="header-actions">
+          <button
+            className="add-timer-btn"
+            onClick={() => setShowAddForm(!showAddForm)}
+          >
+            <Plus size={16} />
+            Add Timer
+          </button>
+        </div>
+      </div>
+
+      {}
+      <div className="stats-grid">
+        <div className="stat-card">
+          <div className="stat-icon active">
+            <Clock size={24} />
+          </div>
+          <div className="stat-details">
+            <h3>Active Timers</h3>
+            <p className="stat-value">{stats.active_timers}</p>
+          </div>
+        </div>
+        
+        <div className="stat-card">
+          <div className="stat-icon warning">
+            <Clock size={24} />
+          </div>
+          <div className="stat-details">
+            <h3>Warning (1.5h+)</h3>
+            <p className="stat-value">{stats.warning_timers}</p>
+          </div>
+        </div>
+        
+        <div className="stat-card">
+          <div className="stat-icon expired">
+            <Clock size={24} />
+          </div>
+          <div className="stat-details">
+            <h3>Expired (2h+)</h3>
+            <p className="stat-value">{stats.expired_timers}</p>
+          </div>
+        </div>
+        
+        <div className="stat-card">
+          <div className="stat-icon total">
+            <User size={24} />
+          </div>
+          <div className="stat-details">
+            <h3>Total Today</h3>
+            <p className="stat-value">{stats.total_timers}</p>
+          </div>
+        </div>
+      </div>
+
+      {}
+      {showAddForm && (
+        <div className="add-timer-form">
+          <h3>Add New Timer</h3>
+          <div className="form-row">
+            <input
+              type="text"
+              placeholder="Customer Name"
+              value={newTimer.customer_name}
+              onChange={(e) => setNewTimer(prev => ({ ...prev, customer_name: e.target.value }))}
+              className="form-input"
+            />
+            <select
+              value={newTimer.table_id}
+              onChange={(e) => setNewTimer(prev => ({ ...prev, table_id: Number(e.target.value) }))}
+              className="form-select"
+            >
+              <option value={0}>Select Table</option>
+              {availableTables.map(table => (
+                <option key={table.id} value={table.id}>
+                  Table {table.table_number}
+                </option>
+              ))}
+            </select>
+            <div className="form-actions">
+              <button onClick={createTimer} className="create-btn">Create</button>
+              <button onClick={() => setShowAddForm(false)} className="cancel-btn">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {}
+      <div className="timers-grid">
+        {timers.map((timer) => (
+          <div 
+            key={timer.id} 
+            className={`timer-card ${timer.timer_status}`}
+            style={{ borderColor: getTimerColor(timer.timer_status) }}
+          >
+            <div className="timer-header">
+              <div className="customer-info">
+                <User size={16} />
+                <span className="customer-name">{timer.customer_name}</span>
+              </div>
+              <div className="table-info">
+                Table {timer.table_number}
+              </div>
+            </div>
+
+            <div className="timer-display">
+              <div className="elapsed-time">
+                <Clock size={20} />
+                <span className="time">{formatTime(timer.current_elapsed_seconds)}</span>
+              </div>
+              <div className="remaining-time">
+                <span className="label">Remaining:</span>
+                <span 
+                  className="time"
+                  style={{ color: getTimerColor(timer.timer_status) }}
+                >
+                  {getTimeRemaining(timer.current_elapsed_seconds)}
+                </span>
+              </div>
+            </div>
+
+            <div className="timer-status">
+              <span 
+                className={`status-badge ${timer.timer_status}`}
+                style={{ backgroundColor: getTimerColor(timer.timer_status) }}
+              >
+                {timer.timer_status.charAt(0).toUpperCase() + timer.timer_status.slice(1)}
+              </span>
+            </div>
+
+            <div className="timer-actions">
+              {timer.is_active && (
+                <button
+                  onClick={() => stopTimer(timer.id)}
+                  className="stop-btn"
+                >
+                  <Square size={14} />
+                  Stop
+                </button>
+              )}
+              <button
+                onClick={() => deleteTimer(timer.id)}
+                className="delete-btn"
+              >
+                <Trash2 size={14} />
+                Delete
+              </button>
+            </div>
+
+            <div className="timer-start">
+              Started: {new Date(timer.start_time).toLocaleString('en-PH', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {timers.length === 0 && (
+        <div className="no-timers">
+          <Clock size={48} />
+          <h3>No Active Timers</h3>
+          <p>Click "Add Timer" to start tracking customer dining time</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default CustomerTimer;
+
