@@ -74,7 +74,6 @@ router.get('/', async (req, res) => {
       ORDER BY o.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
-        queryParams.push(limit, offset);
         const [ordersResult] = await database_1.pool.execute(ordersQuery, queryParams);
         res.json({
             success: true,

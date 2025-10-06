@@ -8,35 +8,37 @@ const auth_1 = require("../middleware/auth");
 const database_1 = require("../config/database");
 const router = express_1.default.Router();
 // Get all transactions with filtering and pagination
-router.get('/', auth_1.authenticateToken, async (req, res) => {
+router.get("/", auth_1.authenticateToken, async (req, res) => {
     try {
-        const { page = 1, limit = 10, status, payment_method, date_from, date_to, search } = req.query;
+        const { page = 1, limit = 10, status, payment_method, date_from, date_to, search, } = req.query;
         const offset = (Number(page) - 1) * Number(limit);
         let whereConditions = [];
         let queryParams = [];
         // Build WHERE conditions
         if (status) {
-            whereConditions.push('t.status = ?');
+            whereConditions.push("t.status = ?");
             queryParams.push(status);
         }
         if (payment_method) {
-            whereConditions.push('t.payment_method = ?');
+            whereConditions.push("t.payment_method = ?");
             queryParams.push(payment_method);
         }
         if (date_from) {
-            whereConditions.push('DATE(t.payment_date) >= ?');
+            whereConditions.push("DATE(t.payment_date) >= ?");
             queryParams.push(date_from);
         }
         if (date_to) {
-            whereConditions.push('DATE(t.payment_date) <= ?');
+            whereConditions.push("DATE(t.payment_date) <= ?");
             queryParams.push(date_to);
         }
         if (search) {
-            whereConditions.push('(t.transaction_code LIKE ? OR t.reference_number LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ?)');
+            whereConditions.push("(t.transaction_code LIKE ? OR t.reference_number LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ?)");
             const searchTerm = `%${search}%`;
             queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
         }
-        const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+        const whereClause = whereConditions.length > 0
+            ? `WHERE ${whereConditions.join(" AND ")}`
+            : "";
         // Get transactions with customer and order details
         const transactionsQuery = `
       SELECT 
@@ -88,6 +90,13 @@ router.get('/', auth_1.authenticateToken, async (req, res) => {
       WHERE status = 'completed'
     `;
         const [stats] = await (0, database_1.executeQuery)(statsQuery);
+        const [reservationStats] = await (0, database_1.executeQuery)(`
+      SELECT 
+        COUNT(*) * 100 AS total_reservations_fee,
+        SUM(CASE WHEN DATE(created_at) = CURDATE() THEN 100 ELSE 0 END) AS today_reservations_fee
+      FROM reservations
+    `);
+        stats.total_reservations_fee = reservationStats.total_reservations_fee;
         res.json({
             success: true,
             data: {
@@ -96,23 +105,23 @@ router.get('/', auth_1.authenticateToken, async (req, res) => {
                     currentPage: Number(page),
                     totalPages: Math.ceil(total / Number(limit)),
                     totalItems: total,
-                    itemsPerPage: Number(limit)
+                    itemsPerPage: Number(limit),
                 },
-                stats
-            }
+                stats,
+            },
         });
     }
     catch (error) {
-        console.error('Error fetching transactions:', error);
+        console.error("Error fetching transactions:", error);
         res.status(500).json({
             success: false,
-            message: 'Failed to fetch transactions',
-            error: error instanceof Error ? error.message : 'Unknown error'
+            message: "Failed to fetch transactions",
+            error: error instanceof Error ? error.message : "Unknown error",
         });
     }
 });
 // Get transaction by ID
-router.get('/:id', auth_1.authenticateToken, async (req, res) => {
+router.get("/:id", auth_1.authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
         const transactionQuery = `
@@ -133,20 +142,20 @@ router.get('/:id', auth_1.authenticateToken, async (req, res) => {
         if (!transaction) {
             return res.status(404).json({
                 success: false,
-                message: 'Transaction not found'
+                message: "Transaction not found",
             });
         }
         res.json({
             success: true,
-            data: transaction
+            data: transaction,
         });
     }
     catch (error) {
-        console.error('Error fetching transaction:', error);
+        console.error("Error fetching transaction:", error);
         res.status(500).json({
             success: false,
-            message: 'Failed to fetch transaction',
-            error: error instanceof Error ? error.message : 'Unknown error'
+            message: "Failed to fetch transaction",
+            error: error instanceof Error ? error.message : "Unknown error",
         });
     }
 });

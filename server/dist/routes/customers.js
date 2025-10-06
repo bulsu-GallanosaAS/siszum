@@ -43,7 +43,6 @@ router.get('/', auth_1.authenticateToken, async (req, res) => {
       ORDER BY created_at DESC 
       LIMIT ${limit} OFFSET ${offset}
     `;
-        queryParams.push(limit, offset);
         const [customers] = await database_1.pool.execute(query, [...queryParams, limit, offset]);
         const response = {
             success: true,
@@ -63,6 +62,115 @@ router.get('/', auth_1.authenticateToken, async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to fetch customers',
+            error: error.message
+        });
+    }
+});
+// get customer feedback
+router.get('/feedback', auth_1.authenticateToken, async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 5;
+        const search = req.query.search || '';
+        const rating = req.query.rating ? parseInt(req.query.rating) : null;
+        const status = req.query.status || '';
+        const offset = (page - 1) * limit;
+        const conditions = [];
+        const params = [];
+        if (search) {
+            conditions.push('(customer_name LIKE ? OR email LIKE ? OR feedback_text LIKE ?)');
+            const searchParam = `%${search}%`;
+            params.push(searchParam, searchParam, searchParam);
+        }
+        if (rating !== null && rating >= 1 && rating <= 5) {
+            conditions.push('rating = ?');
+            params.push(rating);
+        }
+        if (status) {
+            conditions.push('status = ?');
+            params.push(status);
+        }
+        const whereClause = conditions.length > 0
+            ? `WHERE ${conditions.join(' AND ')}`
+            : '';
+        const countQuery = `
+      SELECT COUNT(*) as total 
+      FROM customer_feedback 
+      ${whereClause}
+    `;
+        const [countResult] = await database_1.pool.execute(countQuery, params);
+        const totalItems = countResult[0].total;
+        const totalPages = Math.ceil(totalItems / limit);
+        const dataQuery = `
+      SELECT 
+        id, 
+        customer_id, 
+        customer_name,
+        email, 
+        feedback_text,
+        status, 
+        rating, 
+        created_at 
+      FROM customer_feedback
+      ${whereClause}
+      ORDER BY created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `;
+        const [feedback] = await database_1.pool.execute(dataQuery, params);
+        res.json({
+            success: true,
+            message: 'Feedback retrieved successfully',
+            data: feedback,
+            pagination: {
+                currentPage: page,
+                totalPages: totalPages,
+                totalItems: totalItems,
+                itemsPerPage: limit,
+                hasNextPage: page < totalPages,
+                hasPreviousPage: page > 1
+            }
+        });
+    }
+    catch (error) {
+        console.error('Error fetching feedback:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch feedback',
+            error: error.message
+        });
+    }
+});
+// update feedback status
+router.patch('/feedback/:id', auth_1.authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+        // validate status
+        const validStatuses = ['pending', 'reviewed', 'approved'];
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid status. Must be one of: pending, reviewed, approved'
+            });
+        }
+        const updateQuery = 'UPDATE customer_feedback SET status = ?, updated_at = NOW() WHERE id = ?';
+        const [result] = await database_1.pool.execute(updateQuery, [status, id]);
+        if (result.length > 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Feedback not found'
+            });
+        }
+        res.json({
+            success: true,
+            message: `Feedback ${status} successfully`
+        });
+    }
+    catch (error) {
+        console.error('Error updating feedback:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update feedback',
             error: error.message
         });
     }
