@@ -274,13 +274,6 @@
   font-size: 16px;
 }
 
-/* Loading State */
-.loading-spinner {
-  text-align: center;
-  padding: 40px;
-  color: #64748b;
-}
-
 /* Pagination */
 .pagination {
   display: flex;

@@ -387,15 +387,6 @@
   font-size: 14px;
 }
 
-.loading-spinner {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 200px;
-  font-size: 16px;
-  color: #6b7280;
-}
-
 @media (max-width: 768px) {
   .transactions-page {
     padding: 15px;

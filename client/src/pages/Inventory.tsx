@@ -469,8 +469,8 @@ const Inventory: React.FC = () => {
   if (loading) {
     return (
       <div className="loading-container">
-        <div className="loading-spinner"></div>
-        <p>Loading inventory data...</p>
+        <div className="loader" />
+        <p>Loading inventory</p>
       </div>
     );
   }

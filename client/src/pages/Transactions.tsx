@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Calendar, TrendingUp, CreditCard, Users, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Calendar, TrendingUp, CreditCard, Users, ChevronLeft, ChevronRight, PhilippinePeso, Clock } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { apiClient as api } from '../services';
 import './Transactions.css';
@@ -91,8 +91,10 @@ const Transactions: React.FC = () => {
         setStatsData([
           { name: 'Total Revenue', value: stats.total_revenue || 0, change: '+12%', icon: TrendingUp, color: '#10b981' },
           { name: 'Today Revenue', value: stats.today_revenue || 0, change: '+8%', icon: Calendar, color: '#3b82f6' },
+          { name: 'Total Reservation Fee', value: `₱${stats.total_reservations_fee || 0}`, change: '+6%', icon: PhilippinePeso, color: '#ef4444' },
+          { name: 'Today Reservation Fee', value: `₱${stats.today_reservations_fee || 0}`, change: '+1%', icon: Clock, color: '#FF6B35' },
           { name: 'Total Transactions', value: stats.total_transactions || 0, change: '+5%', icon: CreditCard, color: '#8b5cf6' },
-          { name: 'Today Transactions', value: stats.today_transactions || 0, change: '+3%', icon: Users, color: '#f59e0b' }
+          { name: 'Today Transactions', value: stats.today_transactions || 0, change: '+3%', icon: Users, color: '#f59e0b' },
         ]);
       }
     } catch (error) {
@@ -176,8 +178,9 @@ const Transactions: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="transactions-page">
-        <div className="loading-spinner">Loading transactions...</div>
+      <div className="loading-container">
+        <div className="loader" />
+        <p>Loading transactions</p>
       </div>
     );
   }

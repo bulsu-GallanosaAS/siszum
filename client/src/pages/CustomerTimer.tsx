@@ -161,8 +161,9 @@ const CustomerTimer: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="timer-page">
-        <div className="loading-spinner">Loading timers...</div>
+      <div className="loading-container">
+        <div className="loader" />
+        <p>Loading timers</p>
       </div>
     );
   }

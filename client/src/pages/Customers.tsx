@@ -1,16 +1,34 @@
-import React, { useState, useEffect } from 'react';
-import { Users, Plus, Search, Edit, Trash2, Eye, UserCheck, Calendar, ShoppingCart, X, Package, Star, MessageSquare } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { apiClient } from '../services';
-import { Customer, CustomerStats } from '../types';
-import './Customers.css';
+import React, { useState, useEffect } from "react";
+import {
+  Users,
+  Plus,
+  Search,
+  Edit,
+  Trash2,
+  Eye,
+  UserCheck,
+  Calendar,
+  ShoppingCart,
+  X,
+  Package,
+  Star,
+  MessageSquare,
+  Archive,
+  Check,
+  ArchiveRestore,
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { apiClient } from "../services";
+import { Customer, CustomerStats } from "../types";
+import "./Customers.css";
 
 interface CustomerFeedback {
   id: number;
-  full_name: string;
+  customer_name: string;
   email: string;
-  feedback: string;
+  feedback_text: string;
   rating: number;
+  status: string;
   created_at: string;
 }
 
@@ -19,33 +37,45 @@ const Customers: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [stats, setStats] = useState<CustomerStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
+    null
+  );
+
   // Feedback related state
-  const [viewMode, setViewMode] = useState<'customers' | 'feedback'>('customers');
-  const [customerFeedback, setCustomerFeedback] = useState<CustomerFeedback[]>([]);
+  const [viewMode, setViewMode] = useState<
+    "customers" | "feedback" | "archive"
+  >("customers");
+  const [customerFeedback, setCustomerFeedback] = useState<CustomerFeedback[]>(
+    []
+  );
   const [feedbackLoading, setFeedbackLoading] = useState(false);
-  const [feedbackSearchTerm, setFeedbackSearchTerm] = useState('');
+  const [feedbackSearchTerm, setFeedbackSearchTerm] = useState("");
   const [selectedRating, setSelectedRating] = useState<number | null>(null);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [selectedFeedback, setSelectedFeedback] = useState<CustomerFeedback | null>(null);
-  
+  const [selectedFeedback, setSelectedFeedback] =
+    useState<CustomerFeedback | null>(null);
+
+  const [feedbackPage, setFeedbackPage] = useState(1);
+  const [feedbackItemsPerPage, setFeedbackItemsPerPage] = useState(5);
+  const [feedbackTotalItems, setFeedbackTotalItems] = useState(0);
+  const [feedbackTotalPages, setFeedbackTotalPages] = useState(0);
+
   const [formData, setFormData] = useState({
-    first_name: '',
-    last_name: '',
-    email: '',
-    phone: '',
-    date_of_birth: '',
-    address: '',
-    city: '',
-    country: '',
-    is_active: true
+    first_name: "",
+    last_name: "",
+    email: "",
+    phone: "",
+    date_of_birth: "",
+    address: "",
+    city: "",
+    country: "",
+    is_active: true,
   });
 
   // Pagination state
@@ -66,37 +96,48 @@ const Customers: React.FC = () => {
   useEffect(() => {
     // Check for search parameter in URL
     const urlParams = new URLSearchParams(window.location.search);
-    const searchParam = urlParams.get('search');
+    const searchParam = urlParams.get("search");
     if (searchParam) {
       setSearchTerm(searchParam);
     }
-    
-    if (viewMode === 'customers') {
+
+    if (viewMode === "customers") {
       fetchCustomersData();
     } else {
       fetchCustomerFeedback();
     }
-  }, [currentPage, itemsPerPage, debouncedSearchTerm, statusFilter, viewMode, feedbackSearchTerm, selectedRating]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    currentPage,
+    itemsPerPage,
+    debouncedSearchTerm,
+    statusFilter,
+    viewMode,
+    feedbackSearchTerm,
+    selectedRating,
+    feedbackPage,
+    feedbackItemsPerPage,
+  ]);
 
   const fetchCustomersData = async () => {
     try {
       setLoading(true);
-      console.log('Fetching customers data...');
-      
+      console.log("Fetching customers data...");
+
       const [customersResponse, statsResponse] = await Promise.all([
-        apiClient.get('/customers', {
+        apiClient.get("/customers", {
           params: {
             page: currentPage,
             limit: itemsPerPage,
             search: debouncedSearchTerm,
-            status: statusFilter
-          }
+            status: statusFilter,
+          },
         }),
-        apiClient.get('/customers/stats/overview')
+        apiClient.get("/customers/stats/overview"),
       ]);
 
-      console.log('Customers response:', customersResponse.data);
-      console.log('Stats response:', statsResponse.data);
+      console.log("Customers response:", customersResponse.data);
+      console.log("Stats response:", statsResponse.data);
 
       if (customersResponse.data.success) {
         setCustomers(customersResponse.data.data);
@@ -109,8 +150,8 @@ const Customers: React.FC = () => {
         setStats(statsResponse.data.data);
       }
     } catch (error: any) {
-      console.error('Error fetching customers data:', error);
-      console.error('Error details:', error.response?.data);
+      console.error("Error fetching customers data:", error);
+      console.error("Error details:", error.response?.data);
     } finally {
       setLoading(false);
     }
@@ -119,38 +160,41 @@ const Customers: React.FC = () => {
   const fetchCustomerFeedback = async () => {
     try {
       setFeedbackLoading(true);
-      // Mock data for now - replace with actual API call
-      const mockFeedback: CustomerFeedback[] = [
-        { id: 1, full_name: 'Dron Cano', email: 'DronCano@gmail.com', feedback: 'Great service and delicious food!', rating: 5, created_at: '2024-01-15' },
-        { id: 2, full_name: 'Jijar Dabu', email: 'JijarDabu@gmail.com', feedback: 'Quick delivery, will order again.', rating: 4, created_at: '2024-01-14' },
-        { id: 3, full_name: 'Filipina Nikka', email: 'FilipinaNikka@gmail.com', feedback: 'Amazing Korean BBQ experience!', rating: 5, created_at: '2024-01-13' },
-        { id: 4, full_name: 'Juan Carlos', email: 'JuanCarlos@gmail.com', feedback: 'Good food but a bit pricey.', rating: 3, created_at: '2024-01-12' },
-        { id: 5, full_name: 'Hannah Nicole', email: 'HannahNicole@gmail.com', feedback: 'Excellent atmosphere and staff.', rating: 5, created_at: '2024-01-11' },
-        { id: 6, full_name: 'Jayper Caguiñas', email: 'JayperCaguinas@gmail.com', feedback: 'Fresh ingredients, loved it!', rating: 4, created_at: '2024-01-10' },
-        { id: 7, full_name: 'Aizen Lois', email: 'AizenLois@gmail.com', feedback: 'Perfect for family gatherings.', rating: 5, created_at: '2024-01-09' },
-        { id: 8, full_name: 'Clarisse Panagigan', email: 'ClarissePanagigan@gmail.com', feedback: 'Great value for money!', rating: 4, created_at: '2024-01-08' },
-        { id: 9, full_name: 'Juarie Marie', email: 'JuarieMarie@gmail.com', feedback: 'Authentic Korean flavors.', rating: 5, created_at: '2024-01-07' },
-        { id: 10, full_name: 'Bong bong Marcos', email: 'BongbongMarcos@gmail.com', feedback: 'Will definitely come back!', rating: 4, created_at: '2024-01-06' },
-        { id: 11, full_name: 'Vong revilla', email: 'Vongrevilla@gmail.com', feedback: 'Outstanding service quality.', rating: 5, created_at: '2024-01-05' }
-      ];
-      
-      // Filter by search term if provided
-      let filtered = feedbackSearchTerm 
-        ? mockFeedback.filter(feedback => 
-            feedback.full_name.toLowerCase().includes(feedbackSearchTerm.toLowerCase()) ||
-            feedback.email.toLowerCase().includes(feedbackSearchTerm.toLowerCase()) ||
-            feedback.feedback.toLowerCase().includes(feedbackSearchTerm.toLowerCase())
-          )
-        : mockFeedback;
-      
-      // Filter by rating if selected
-      if (selectedRating !== null) {
-        filtered = filtered.filter(feedback => feedback.rating === selectedRating);
+
+      const params: any = {
+        page: feedbackPage,
+        limit: feedbackItemsPerPage,
+      };
+
+      if (feedbackSearchTerm) {
+        params.search = feedbackSearchTerm;
       }
-      
-      setCustomerFeedback(filtered);
+
+      if (selectedRating !== null) {
+        params.rating = selectedRating;
+      }
+
+      if (viewMode === "feedback") {
+        params.status = "pending";
+      } else if (viewMode === "archive") {
+        params.status = "reviewed";
+      }
+
+      const response = await apiClient.get("/customers/feedback", { params });
+
+      if (response.data.success) {
+        setCustomerFeedback(response.data.data);
+        console.log("success", response.data);
+
+        if (response.data.pagination) {
+          setFeedbackTotalItems(response.data.pagination.totalItems);
+          setFeedbackTotalPages(response.data.pagination.totalPages);
+        }
+      } else {
+        console.log("not success", response);
+      }
     } catch (error: any) {
-      console.error('Error fetching customer feedback:', error);
+      console.error("Error fetching customer feedback:", error);
     } finally {
       setFeedbackLoading(false);
     }
@@ -161,18 +205,75 @@ const Customers: React.FC = () => {
     setShowFeedbackModal(true);
   };
 
-  const handleDeleteFeedback = async (feedbackId: number) => {
-    if (!window.confirm('Are you sure you want to delete this feedback?')) {
-      return;
-    }
+  const handleArchiveFeedback = async (feedbackId: number) => {
+    if (window.confirm("Are you sure you want to archive this feedback?")) {
+      try {
+        const response = await apiClient.patch(
+          `/customers/feedback/${feedbackId}`,
+          {
+            status: "reviewed",
+          }
+        );
 
-    try {
-      
-      setCustomerFeedback(prev => prev.filter(feedback => feedback.id !== feedbackId));
-      alert('Feedback deleted successfully!');
-    } catch (error: any) {
-      console.error('Error deleting feedback:', error);
-      alert('Failed to delete feedback. Please try again.');
+        if (response.data.success) {
+          alert("Feedback archived successfully!");
+          fetchCustomerFeedback(); // Refresh the list
+        }
+      } catch (error: any) {
+        console.error("Error archiving feedback:", error);
+        const errorMessage =
+          error.response?.data?.message ||
+          "Failed to archive feedback. Please try again.";
+        alert(errorMessage);
+      }
+    }
+  };
+
+  const handleApproveFeedback = async (feedbackId: number) => {
+    if (window.confirm("Are you sure you want to approve this feedback?")) {
+      try {
+        const response = await apiClient.patch(
+          `/customers/feedback/${feedbackId}`,
+          {
+            status: "approved",
+          }
+        );
+
+        if (response.data.success) {
+          alert("Feedback approved successfully!");
+          fetchCustomerFeedback();
+        }
+      } catch (error: any) {
+        console.error("Error approving feedback:", error);
+        const errorMessage =
+          error.response?.data?.message ||
+          "Failed to approve feedback. Please try again.";
+        alert(errorMessage);
+      }
+    }
+  };
+
+  const handleRestoreFeedback = async (feedbackId: number) => {
+    if (window.confirm("Are you sure you want to restore this feedback?")) {
+      try {
+        const response = await apiClient.patch(
+          `/customers/feedback/${feedbackId}`,
+          {
+            status: "pending",
+          }
+        );
+
+        if (response.data.success) {
+          alert("Feedback restored successfully!");
+          fetchCustomerFeedback();
+        }
+      } catch (error: any) {
+        console.error("Error restoring feedback:", error);
+        const errorMessage =
+          error.response?.data?.message ||
+          "Failed to restore feedback. Please try again.";
+        alert(errorMessage);
+      }
     }
   };
 
@@ -180,35 +281,37 @@ const Customers: React.FC = () => {
     try {
       const customerData = {
         ...formData,
-        date_of_birth: formData.date_of_birth || null
+        date_of_birth: formData.date_of_birth || null,
       };
 
-      const response = await apiClient.post('/customers', customerData);
-      
+      const response = await apiClient.post("/customers", customerData);
+
       if (response.data.success) {
-        alert('Customer added successfully!');
+        alert("Customer added successfully!");
         setShowAddModal(false);
         resetForm();
-        fetchCustomersData(); // Refresh the list
+        fetchCustomersData();
       }
     } catch (error: any) {
-      console.error('Error adding customer:', error);
-      const errorMessage = error.response?.data?.message || 'Failed to add customer. Please try again.';
+      console.error("Error adding customer:", error);
+      const errorMessage =
+        error.response?.data?.message ||
+        "Failed to add customer. Please try again.";
       alert(errorMessage);
     }
   };
 
   const resetForm = () => {
     setFormData({
-      first_name: '',
-      last_name: '',
-      email: '',
-      phone: '',
-      date_of_birth: '',
-      address: '',
-      city: '',
-      country: '',
-      is_active: true
+      first_name: "",
+      last_name: "",
+      email: "",
+      phone: "",
+      date_of_birth: "",
+      address: "",
+      city: "",
+      country: "",
+      is_active: true,
     });
   };
 
@@ -223,28 +326,36 @@ const Customers: React.FC = () => {
     setFormData({
       first_name: customer.first_name,
       last_name: customer.last_name,
-      email: customer.email || '',
-      phone: customer.phone || '',
-      date_of_birth: customer.date_of_birth ? customer.date_of_birth.split('T')[0] : '',
-      address: customer.address || '',
-      city: customer.city || '',
-      country: customer.country || '',
-      is_active: customer.is_active
+      email: customer.email || "",
+      phone: customer.phone || "",
+      date_of_birth: customer.date_of_birth
+        ? customer.date_of_birth.split("T")[0]
+        : "",
+      address: customer.address || "",
+      city: customer.city || "",
+      country: customer.country || "",
+      is_active: customer.is_active,
     });
     setShowEditModal(true);
   };
 
   const handleDeleteCustomer = async (customer: Customer) => {
-    if (window.confirm(`Are you sure you want to delete "${customer.first_name} ${customer.last_name}"? This action cannot be undone.`)) {
+    if (
+      window.confirm(
+        `Are you sure you want to delete "${customer.first_name} ${customer.last_name}"? This action cannot be undone.`
+      )
+    ) {
       try {
         const response = await apiClient.delete(`/customers/${customer.id}`);
         if (response.data.success) {
-          alert('Customer deleted successfully!');
+          alert("Customer deleted successfully!");
           fetchCustomersData(); // Refresh the list
         }
       } catch (error: any) {
-        console.error('Error deleting customer:', error);
-        const errorMessage = error.response?.data?.message || 'Failed to delete customer. Please try again.';
+        console.error("Error deleting customer:", error);
+        const errorMessage =
+          error.response?.data?.message ||
+          "Failed to delete customer. Please try again.";
         alert(errorMessage);
       }
     }
@@ -256,30 +367,40 @@ const Customers: React.FC = () => {
     try {
       const customerData = {
         ...formData,
-        date_of_birth: formData.date_of_birth || null
+        date_of_birth: formData.date_of_birth || null,
       };
 
-      const response = await apiClient.put(`/customers/${selectedCustomer.id}`, customerData);
-      
+      const response = await apiClient.put(
+        `/customers/${selectedCustomer.id}`,
+        customerData
+      );
+
       if (response.data.success) {
-        alert('Customer updated successfully!');
+        alert("Customer updated successfully!");
         setShowEditModal(false);
         resetForm();
         setSelectedCustomer(null);
         fetchCustomersData(); // Refresh the list
       }
     } catch (error: any) {
-      console.error('Error updating customer:', error);
-      const errorMessage = error.response?.data?.message || 'Failed to update customer. Please try again.';
+      console.error("Error updating customer:", error);
+      const errorMessage =
+        error.response?.data?.message ||
+        "Failed to update customer. Please try again.";
       alert(errorMessage);
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >
+  ) => {
     const { name, value, type } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
+      [name]:
+        type === "checkbox" ? (e.target as HTMLInputElement).checked : value,
     }));
   };
 
@@ -307,33 +428,55 @@ const Customers: React.FC = () => {
     setCurrentPage(1); // Reset to first page when changing items per page
   };
 
+  const handleFeedbackPageChange = (page: number) => {
+    if (page >= 1 && page <= feedbackTotalPages) {
+      setFeedbackPage(page);
+    }
+  };
+
+  const handleFeedbackPreviousPage = () => {
+    if (feedbackPage > 1) {
+      setFeedbackPage(feedbackPage - 1);
+    }
+  };
+
+  const handleFeedbackNextPage = () => {
+    if (feedbackPage < feedbackTotalPages) {
+      setFeedbackPage(feedbackPage + 1);
+    }
+  };
+
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [debouncedSearchTerm, statusFilter, selectedRating]);
+
+  useEffect(() => {
+    setFeedbackPage(1);
+  }, [feedbackSearchTerm, selectedRating, viewMode]);
 
   const handleRatingFilter = (rating: number | null) => {
     setSelectedRating(rating);
   };
 
   const formatDate = (dateString: string | undefined) => {
-    if (!dateString) return 'N/A';
+    if (!dateString) return "N/A";
     return new Date(dateString).toLocaleDateString();
   };
 
   const getStatusColor = (isActive: boolean) => {
-    return isActive ? '#4CAF50' : '#F44336';
+    return isActive ? "#4CAF50" : "#F44336";
   };
 
   const getStatusText = (isActive: boolean) => {
-    return isActive ? 'Active' : 'Inactive';
+    return isActive ? "Active" : "Inactive";
   };
 
   if (loading) {
     return (
       <div className="loading-container">
-        <div className="loading-spinner"></div>
-        <p>Loading customers data...</p>
+        <div className="loader"></div>
+        <p>Loading customers</p>
       </div>
     );
   }
@@ -341,34 +484,47 @@ const Customers: React.FC = () => {
   return (
     <div className="customers-page">
       <div className="page-header">
-        <h1>{viewMode === 'customers' ? 'Customers' : 'Customer Feedback'}</h1>
+        <h1>{viewMode === "customers" ? "Customers" : "Customer Feedback"}</h1>
         <div className="header-actions">
           <div className="view-mode-buttons">
-            <button 
-              className={`view-mode-btn ${viewMode === 'customers' ? 'active' : ''}`}
-              onClick={() => setViewMode('customers')}
+            <button
+              className={`view-mode-btn ${
+                viewMode === "customers" ? "active" : ""
+              }`}
+              onClick={() => setViewMode("customers")}
             >
               <Users size={20} />
               Customers
             </button>
-            <button 
-              className={`view-mode-btn ${viewMode === 'feedback' ? 'active' : ''}`}
-              onClick={() => setViewMode('feedback')}
+            <button
+              className={`view-mode-btn ${
+                viewMode === "feedback" ? "active" : ""
+              }`}
+              onClick={() => setViewMode("feedback")}
             >
               <MessageSquare size={20} />
               Feedback
             </button>
+            <button
+              className={`view-mode-btn ${
+                viewMode === "archive" ? "active" : ""
+              }`}
+              onClick={() => setViewMode("archive")}
+            >
+              <Archive size={20} />
+              Archive
+            </button>
           </div>
-          {viewMode === 'customers' && (
+          {viewMode === "customers" && (
             <>
-              <button 
+              <button
                 className="order-list-btn"
-                onClick={() => navigate('/orders')}
+                onClick={() => navigate("/orders")}
               >
                 <Package size={20} />
                 Order List
               </button>
-              <button 
+              <button
                 className="add-button"
                 onClick={() => {
                   resetForm();
@@ -384,7 +540,7 @@ const Customers: React.FC = () => {
       </div>
 
       {/* Statistics Cards */}
-      {viewMode === 'customers' && stats && (
+      {viewMode === "customers" && stats && (
         <div className="stats-container">
           <div className="stat-card">
             <div className="stat-icon">
@@ -395,7 +551,7 @@ const Customers: React.FC = () => {
               <div className="stat-value">{stats.total_customers}</div>
             </div>
           </div>
-          
+
           <div className="stat-card">
             <div className="stat-icon">
               <UserCheck size={24} />
@@ -429,7 +585,7 @@ const Customers: React.FC = () => {
       )}
 
       {/* Feedback Statistics Cards */}
-      {viewMode === 'feedback' && (
+      {(viewMode === "feedback" || viewMode === "archive") && (
         <div className="stats-container">
           <div className="stat-card">
             <div className="stat-icon">
@@ -440,7 +596,7 @@ const Customers: React.FC = () => {
               <div className="stat-value">{customerFeedback.length}</div>
             </div>
           </div>
-          
+
           <div className="stat-card">
             <div className="stat-icon">
               <Star size={24} />
@@ -448,10 +604,14 @@ const Customers: React.FC = () => {
             <div className="stat-info">
               <h3>Average Rating</h3>
               <div className="stat-value">
-                {customerFeedback.length > 0 
-                  ? (customerFeedback.reduce((sum, feedback) => sum + feedback.rating, 0) / customerFeedback.length).toFixed(1)
-                  : '0.0'
-                }
+                {customerFeedback.length > 0
+                  ? (
+                      customerFeedback.reduce(
+                        (sum, feedback) => sum + feedback.rating,
+                        0
+                      ) / customerFeedback.length
+                    ).toFixed(1)
+                  : "0.0"}
               </div>
             </div>
           </div>
@@ -475,12 +635,16 @@ const Customers: React.FC = () => {
             <div className="stat-info">
               <h3>This Month</h3>
               <div className="stat-value">
-                {customerFeedback.filter(feedback => {
-                  const feedbackDate = new Date(feedback.created_at);
-                  const currentDate = new Date();
-                  return feedbackDate.getMonth() === currentDate.getMonth() && 
-                         feedbackDate.getFullYear() === currentDate.getFullYear();
-                }).length}
+                {
+                  customerFeedback.filter((feedback) => {
+                    const feedbackDate = new Date(feedback.created_at);
+                    const currentDate = new Date();
+                    return (
+                      feedbackDate.getMonth() === currentDate.getMonth() &&
+                      feedbackDate.getFullYear() === currentDate.getFullYear()
+                    );
+                  }).length
+                }
               </div>
             </div>
           </div>
@@ -493,14 +657,22 @@ const Customers: React.FC = () => {
           <Search size={20} />
           <input
             type="text"
-            placeholder={viewMode === 'customers' ? "Search customers..." : "Search feedback..."}
-            value={viewMode === 'customers' ? searchTerm : feedbackSearchTerm}
-            onChange={(e) => viewMode === 'customers' ? setSearchTerm(e.target.value) : setFeedbackSearchTerm(e.target.value)}
+            placeholder={
+              viewMode === "customers"
+                ? "Search customers..."
+                : "Search feedback..."
+            }
+            value={viewMode === "customers" ? searchTerm : feedbackSearchTerm}
+            onChange={(e) =>
+              viewMode === "customers"
+                ? setSearchTerm(e.target.value)
+                : setFeedbackSearchTerm(e.target.value)
+            }
             className="search-input"
           />
         </div>
-        
-        {viewMode === 'customers' && (
+
+        {viewMode === "customers" && (
           <>
             <div className="filter-group">
               <label>Status:</label>
@@ -519,7 +691,9 @@ const Customers: React.FC = () => {
               <label>Show:</label>
               <select
                 value={itemsPerPage}
-                onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                onChange={(e) =>
+                  handleItemsPerPageChange(Number(e.target.value))
+                }
                 className="items-select"
               >
                 <option value={10}>10</option>
@@ -532,55 +706,82 @@ const Customers: React.FC = () => {
           </>
         )}
 
-        {viewMode === 'feedback' && (
-          <div className="filter-buttons">
-            <button 
-              className={`filter-button ${selectedRating === null ? 'active' : ''}`}
-              onClick={() => handleRatingFilter(null)}
-            >
-              All
-            </button>
-            <button 
-              className={`filter-button ${selectedRating === 5 ? 'active' : ''}`}
-              onClick={() => handleRatingFilter(5)}
-            >
-              <Star size={14} />
-              5 Stars
-            </button>
-            <button 
-              className={`filter-button ${selectedRating === 4 ? 'active' : ''}`}
-              onClick={() => handleRatingFilter(4)}
-            >
-              <Star size={14} />
-              4 Stars
-            </button>
-            <button 
-              className={`filter-button ${selectedRating === 3 ? 'active' : ''}`}
-              onClick={() => handleRatingFilter(3)}
-            >
-              <Star size={14} />
-              3 Stars
-            </button>
-            <button 
-              className={`filter-button ${selectedRating === 2 ? 'active' : ''}`}
-              onClick={() => handleRatingFilter(2)}
-            >
-              <Star size={14} />
-              2 Stars
-            </button>
-            <button 
-              className={`filter-button ${selectedRating === 1 ? 'active' : ''}`}
-              onClick={() => handleRatingFilter(1)}
-            >
-              <Star size={14} />
-              1 Star
-            </button>
-          </div>
+        {(viewMode === "feedback" || viewMode === "archive") && (
+          <>
+            <div className="filter-buttons">
+              <button
+                className={`filter-button ${
+                  selectedRating === null ? "active" : ""
+                }`}
+                onClick={() => handleRatingFilter(null)}
+              >
+                All
+              </button>
+              <button
+                className={`filter-button ${
+                  selectedRating === 5 ? "active" : ""
+                }`}
+                onClick={() => handleRatingFilter(5)}
+              >
+                <Star size={14} />5 Stars
+              </button>
+              <button
+                className={`filter-button ${
+                  selectedRating === 4 ? "active" : ""
+                }`}
+                onClick={() => handleRatingFilter(4)}
+              >
+                <Star size={14} />4 Stars
+              </button>
+              <button
+                className={`filter-button ${
+                  selectedRating === 3 ? "active" : ""
+                }`}
+                onClick={() => handleRatingFilter(3)}
+              >
+                <Star size={14} />3 Stars
+              </button>
+              <button
+                className={`filter-button ${
+                  selectedRating === 2 ? "active" : ""
+                }`}
+                onClick={() => handleRatingFilter(2)}
+              >
+                <Star size={14} />2 Stars
+              </button>
+              <button
+                className={`filter-button ${
+                  selectedRating === 1 ? "active" : ""
+                }`}
+                onClick={() => handleRatingFilter(1)}
+              >
+                <Star size={14} />1 Star
+              </button>
+            </div>
+
+            <div className="items-per-page">
+              <label>Show:</label>
+              <select
+                value={feedbackItemsPerPage}
+                onChange={(e) => {
+                  setFeedbackItemsPerPage(Number(e.target.value));
+                  setFeedbackPage(1);
+                }}
+                className="items-select"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <span>items per page</span>
+            </div>
+          </>
         )}
       </div>
 
       {/* Customers Table */}
-      {viewMode === 'customers' && (
+      {viewMode === "customers" && (
         <div className="table-container">
           <table className="customers-table">
             <thead>
@@ -606,34 +807,38 @@ const Customers: React.FC = () => {
                       </div>
                     </div>
                   </td>
-                  <td className="email">{customer.email || 'N/A'}</td>
-                  <td className="phone">{customer.phone || 'N/A'}</td>
-                  <td className="city">{customer.city || 'N/A'}</td>
+                  <td className="email">{customer.email || "N/A"}</td>
+                  <td className="phone">{customer.phone || "N/A"}</td>
+                  <td className="city">{customer.city || "N/A"}</td>
                   <td className="status">
-                    <span 
+                    <span
                       className="status-badge"
-                      style={{ backgroundColor: getStatusColor(customer.is_active) }}
+                      style={{
+                        backgroundColor: getStatusColor(customer.is_active),
+                      }}
                     >
                       {getStatusText(customer.is_active)}
                     </span>
                   </td>
-                  <td className="created-date">{formatDate(customer.created_at)}</td>
+                  <td className="created-date">
+                    {formatDate(customer.created_at)}
+                  </td>
                   <td className="actions">
-                    <button 
+                    <button
                       className="action-btn view-btn"
                       onClick={() => handleViewCustomer(customer)}
                       title="View Details"
                     >
                       <Eye size={14} />
                     </button>
-                    <button 
+                    <button
                       className="action-btn edit-btn"
                       onClick={() => handleEditCustomer(customer)}
                       title="Edit Customer"
                     >
                       <Edit size={14} />
                     </button>
-                    <button 
+                    <button
                       className="action-btn delete-btn"
                       onClick={() => handleDeleteCustomer(customer)}
                       title="Delete Customer"
@@ -655,7 +860,7 @@ const Customers: React.FC = () => {
       )}
 
       {/* Customer Feedback Table */}
-      {viewMode === 'feedback' && (
+      {viewMode === "feedback" && (
         <div className="table-container">
           <table className="feedback-table">
             <thead>
@@ -669,111 +874,283 @@ const Customers: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {customerFeedback.map((feedback) => (
-                <tr key={feedback.id}>
-                  <td className="customer-name">{feedback.full_name}</td>
-                  <td className="email">{feedback.email}</td>
-                  <td className="feedback-text">
-                    <div className="feedback-preview">
-                      {feedback.feedback.length > 100 
-                        ? feedback.feedback.substring(0, 100) + '...'
-                        : feedback.feedback
-                      }
+              {feedbackLoading ? (
+                <tr>
+                  <td colSpan={6} className="loading-cell">
+                    <div className="loading-state">
+                      <div className="loader" />
+                      <p>Loading feedback</p>
                     </div>
-                  </td>
-                  <td className="rating">
-                    <div className="star-rating">
-                      {[...Array(5)].map((_, index) => (
-                        <Star 
-                          key={index}
-                          size={16}
-                          className={`star ${index < feedback.rating ? 'filled' : ''}`}
-                        />
-                      ))}
-                      <span className="rating-number">({feedback.rating})</span>
-                    </div>
-                  </td>
-                  <td className="created-date">{formatDate(feedback.created_at)}</td>
-                  <td className="actions">
-                    <button 
-                      className="action-btn view-btn"
-                      onClick={() => handleViewFeedback(feedback)}
-                      title="View Full Feedback"
-                    >
-                      <Eye size={14} />
-                    </button>
-                    <button 
-                      className="action-btn delete-btn"
-                      onClick={() => handleDeleteFeedback(feedback.id)}
-                      title="Delete Feedback"
-                    >
-                      <Trash2 size={14} />
-                      Delete
-                    </button>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                <>
+                  {customerFeedback.map((feedback) => (
+                    <tr key={feedback.id}>
+                      <td className="customer-name">
+                        {feedback.customer_name}
+                      </td>
+                      <td className="email">{feedback.email}</td>
+                      <td className="feedback-text">
+                        <div className="feedback-preview">
+                          {feedback.feedback_text.length > 100
+                            ? feedback.feedback_text.substring(0, 100) + "..."
+                            : feedback.feedback_text}
+                        </div>
+                      </td>
+                      <td className="rating">
+                        <div className="star-rating">
+                          {[...Array(5)].map((_, index) => (
+                            <Star
+                              key={index}
+                              size={16}
+                              className={`star ${
+                                index < feedback.rating ? "filled" : ""
+                              }`}
+                            />
+                          ))}
+                          <span className="rating-number">
+                            ({feedback.rating})
+                          </span>
+                        </div>
+                      </td>
+                      <td className="created-date">
+                        {formatDate(feedback.created_at)}
+                      </td>
+                      <td className="actions">
+                        <button
+                          className="action-btn view-btn"
+                          onClick={() => handleViewFeedback(feedback)}
+                          title="View Full Feedback"
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button
+                          className="action-btn archive-btn"
+                          onClick={() => handleArchiveFeedback(feedback.id)}
+                          title="Archive Feedback"
+                        >
+                          <Archive size={14} />
+                        </button>
+                        <button
+                          className="action-btn approve-btn"
+                          onClick={() => handleApproveFeedback(feedback.id)}
+                          title="Approve Feedback"
+                        >
+                          <Check size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {customerFeedback.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="empty-cell">
+                        <div className="empty-state">
+                          <p>No customer feedback found.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              )}
             </tbody>
           </table>
+        </div>
+      )}
 
-          {customerFeedback.length === 0 && !feedbackLoading && (
-            <div className="empty-state">
-              <p>No customer feedback found.</p>
-            </div>
-          )}
-
-          {feedbackLoading && (
-            <div className="loading-state">
-              <p>Loading feedback...</p>
-            </div>
-          )}
+      {/* Customer Feedback Table */}
+      {viewMode === "archive" && (
+        <div className="table-container">
+          <table className="feedback-table">
+            <thead>
+              <tr>
+                <th>Customer</th>
+                <th>Email</th>
+                <th>Feedback</th>
+                <th>Rating</th>
+                <th>Date</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {feedbackLoading ? (
+                <tr>
+                  <td colSpan={6} className="loading-cell">
+                    <div className="loading-state">
+                      <div className="loader" />
+                      <p>Loading archive</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                <>
+                  {customerFeedback.map((feedback) => (
+                    <tr key={feedback.id}>
+                      <td className="customer-name">
+                        {feedback.customer_name}
+                      </td>
+                      <td className="email">{feedback.email}</td>
+                      <td className="feedback-text">
+                        <div className="feedback-preview">
+                          {feedback.feedback_text.length > 100
+                            ? feedback.feedback_text.substring(0, 100) + "..."
+                            : feedback.feedback_text}
+                        </div>
+                      </td>
+                      <td className="rating">
+                        <div className="star-rating">
+                          {[...Array(5)].map((_, index) => (
+                            <Star
+                              key={index}
+                              size={16}
+                              className={`star ${
+                                index < feedback.rating ? "filled" : ""
+                              }`}
+                            />
+                          ))}
+                          <span className="rating-number">
+                            ({feedback.rating})
+                          </span>
+                        </div>
+                      </td>
+                      <td className="created-date">
+                        {formatDate(feedback.created_at)}
+                      </td>
+                      <td className="actions">
+                        <button
+                          className="action-btn view-btn"
+                          onClick={() => handleViewFeedback(feedback)}
+                          title="View Full Feedback"
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button
+                          className="action-btn archive-btn"
+                          onClick={() => handleRestoreFeedback(feedback.id)}
+                          title="Restore Feedback"
+                        >
+                          <ArchiveRestore size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {customerFeedback.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="empty-cell">
+                        <div className="empty-state">
+                          <p>No archived feedback found.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              )}
+            </tbody>
+          </table>
         </div>
       )}
 
       {/* Pagination */}
-      {totalPages > 1 && (
+      {((viewMode === "customers" && totalPages > 1) ||
+        ((viewMode === "feedback" || viewMode === "archive") &&
+          feedbackTotalPages > 1)) && (
         <div className="pagination-container">
           <div className="pagination-info">
-            Showing {Math.min((currentPage - 1) * itemsPerPage + 1, totalItems)} to{' '}
-            {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} customers
+            {viewMode === "customers" ? (
+              <>
+                Showing{" "}
+                {Math.min((currentPage - 1) * itemsPerPage + 1, totalItems)} to{" "}
+                {Math.min(currentPage * itemsPerPage, totalItems)} of{" "}
+                {totalItems} customers
+              </>
+            ) : (
+              <>
+                Showing{" "}
+                {Math.min(
+                  (feedbackPage - 1) * feedbackItemsPerPage + 1,
+                  feedbackTotalItems
+                )}{" "}
+                to{" "}
+                {Math.min(
+                  feedbackPage * feedbackItemsPerPage,
+                  feedbackTotalItems
+                )}{" "}
+                of {feedbackTotalItems} feedbacks
+              </>
+            )}
           </div>
-          
+
           <div className="pagination-controls">
-            <button 
+            <button
               className="pagination-btn"
-              onClick={handlePreviousPage}
-              disabled={currentPage === 1}
+              onClick={
+                viewMode === "customers"
+                  ? handlePreviousPage
+                  : handleFeedbackPreviousPage
+              }
+              disabled={
+                viewMode === "customers"
+                  ? currentPage === 1
+                  : feedbackPage === 1
+              }
             >
               Previous
             </button>
-            
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              let pageNum: number;
-              if (totalPages <= 5) {
-                pageNum = i + 1;
-              } else if (currentPage <= 3) {
-                pageNum = i + 1;
-              } else if (currentPage >= totalPages - 2) {
-                pageNum = totalPages - 4 + i;
-              } else {
-                pageNum = currentPage - 2 + i;
+
+            {Array.from(
+              {
+                length: Math.min(
+                  5,
+                  viewMode === "customers" ? totalPages : feedbackTotalPages
+                ),
+              },
+              (_, i) => {
+                const pages =
+                  viewMode === "customers" ? totalPages : feedbackTotalPages;
+                const current =
+                  viewMode === "customers" ? currentPage : feedbackPage;
+
+                let pageNum: number;
+                if (pages <= 5) {
+                  pageNum = i + 1;
+                } else if (current <= 3) {
+                  pageNum = i + 1;
+                } else if (current >= pages - 2) {
+                  pageNum = pages - 4 + i;
+                } else {
+                  pageNum = current - 2 + i;
+                }
+
+                return (
+                  <button
+                    key={pageNum}
+                    className={`pagination-btn ${
+                      current === pageNum ? "active" : ""
+                    }`}
+                    onClick={() =>
+                      viewMode === "customers"
+                        ? handlePageChange(pageNum)
+                        : handleFeedbackPageChange(pageNum)
+                    }
+                  >
+                    {pageNum}
+                  </button>
+                );
               }
-              
-              return (
-                <button
-                  key={pageNum}
-                  className={`pagination-btn ${currentPage === pageNum ? 'active' : ''}`}
-                  onClick={() => handlePageChange(pageNum)}
-                >
-                  {pageNum}
-                </button>
-              );
-            })}
-            
-            <button 
+            )}
+
+            <button
               className="pagination-btn"
-              onClick={handleNextPage}
-              disabled={currentPage === totalPages}
+              onClick={
+                viewMode === "customers"
+                  ? handleNextPage
+                  : handleFeedbackNextPage
+              }
+              disabled={
+                viewMode === "customers"
+                  ? currentPage === totalPages
+                  : feedbackPage === feedbackTotalPages
+              }
             >
               Next
             </button>
@@ -787,13 +1164,21 @@ const Customers: React.FC = () => {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Add New Customer</h2>
-              <button className="close-btn" onClick={() => setShowAddModal(false)}>
+              <button
+                className="close-btn"
+                onClick={() => setShowAddModal(false)}
+              >
                 <X size={20} />
               </button>
             </div>
-            
+
             <div className="modal-body">
-              <form onSubmit={(e) => { e.preventDefault(); handleAddCustomer(); }}>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleAddCustomer();
+                }}
+              >
                 <div className="form-grid">
                   <div className="form-group">
                     <label>First Name *</label>
@@ -805,7 +1190,7 @@ const Customers: React.FC = () => {
                       required
                     />
                   </div>
-                  
+
                   <div className="form-group">
                     <label>Last Name *</label>
                     <input
@@ -816,7 +1201,7 @@ const Customers: React.FC = () => {
                       required
                     />
                   </div>
-                  
+
                   <div className="form-group">
                     <label>Email</label>
                     <input
@@ -826,7 +1211,7 @@ const Customers: React.FC = () => {
                       onChange={handleInputChange}
                     />
                   </div>
-                  
+
                   <div className="form-group">
                     <label>Phone</label>
                     <input
@@ -836,7 +1221,7 @@ const Customers: React.FC = () => {
                       onChange={handleInputChange}
                     />
                   </div>
-                  
+
                   <div className="form-group">
                     <label>Date of Birth</label>
                     <input
@@ -846,7 +1231,7 @@ const Customers: React.FC = () => {
                       onChange={handleInputChange}
                     />
                   </div>
-                  
+
                   <div className="form-group">
                     <label>City</label>
                     <input
@@ -856,7 +1241,7 @@ const Customers: React.FC = () => {
                       onChange={handleInputChange}
                     />
                   </div>
-                  
+
                   <div className="form-group full-width">
                     <label>Address</label>
                     <textarea
@@ -866,7 +1251,7 @@ const Customers: React.FC = () => {
                       rows={3}
                     />
                   </div>
-                  
+
                   <div className="form-group">
                     <label>Country</label>
                     <input
@@ -876,7 +1261,7 @@ const Customers: React.FC = () => {
                       onChange={handleInputChange}
                     />
                   </div>
-                  
+
                   <div className="form-group">
                     <label>
                       <input
@@ -889,9 +1274,13 @@ const Customers: React.FC = () => {
                     </label>
                   </div>
                 </div>
-                
+
                 <div className="modal-actions">
-                  <button type="button" className="cancel-btn" onClick={() => setShowAddModal(false)}>
+                  <button
+                    type="button"
+                    className="cancel-btn"
+                    onClick={() => setShowAddModal(false)}
+                  >
                     Cancel
                   </button>
                   <button type="submit" className="submit-btn">
@@ -910,11 +1299,14 @@ const Customers: React.FC = () => {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Customer Details</h2>
-              <button className="close-btn" onClick={() => setShowViewModal(false)}>
+              <button
+                className="close-btn"
+                onClick={() => setShowViewModal(false)}
+              >
                 <X size={20} />
               </button>
             </div>
-            
+
             <div className="modal-body">
               <div className="view-details">
                 <div className="detail-grid">
@@ -922,57 +1314,63 @@ const Customers: React.FC = () => {
                     <label>Customer Code:</label>
                     <span>{selectedCustomer.customer_code}</span>
                   </div>
-                  
+
                   <div className="detail-item">
                     <label>Full Name:</label>
-                    <span>{selectedCustomer.first_name} {selectedCustomer.last_name}</span>
+                    <span>
+                      {selectedCustomer.first_name} {selectedCustomer.last_name}
+                    </span>
                   </div>
-                  
+
                   <div className="detail-item">
                     <label>Email:</label>
-                    <span>{selectedCustomer.email || 'N/A'}</span>
+                    <span>{selectedCustomer.email || "N/A"}</span>
                   </div>
-                  
+
                   <div className="detail-item">
                     <label>Phone:</label>
-                    <span>{selectedCustomer.phone || 'N/A'}</span>
+                    <span>{selectedCustomer.phone || "N/A"}</span>
                   </div>
-                  
+
                   <div className="detail-item">
                     <label>Date of Birth:</label>
                     <span>{formatDate(selectedCustomer.date_of_birth)}</span>
                   </div>
-                  
+
                   <div className="detail-item">
                     <label>City:</label>
-                    <span>{selectedCustomer.city || 'N/A'}</span>
+                    <span>{selectedCustomer.city || "N/A"}</span>
                   </div>
-                  
+
                   <div className="detail-item">
                     <label>Country:</label>
-                    <span>{selectedCustomer.country || 'N/A'}</span>
+                    <span>{selectedCustomer.country || "N/A"}</span>
                   </div>
-                  
+
                   <div className="detail-item">
                     <label>Status:</label>
-                    <span 
+                    <span
                       className="status-badge"
-                      style={{ backgroundColor: getStatusColor(selectedCustomer.is_active) }}
+                      style={{
+                        backgroundColor: getStatusColor(
+                          selectedCustomer.is_active
+                        ),
+                      }}
                     >
                       {getStatusText(selectedCustomer.is_active)}
                     </span>
                   </div>
-                  
+
                   <div className="detail-item full-width">
                     <label>Address:</label>
-                    <span>{selectedCustomer.address || 'N/A'}</span>
+                    <span>{selectedCustomer.address || "N/A"}</span>
                   </div>
-                  
+
                   <div className="detail-item">
                     <label>Created:</label>
                     <span>{formatDate(selectedCustomer.created_at)}</span>
                   </div>
-                  
+
                   <div className="detail-item">
                     <label>Updated:</label>
                     <span>{formatDate(selectedCustomer.updated_at)}</span>
@@ -990,13 +1388,21 @@ const Customers: React.FC = () => {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Edit Customer</h2>
-              <button className="close-btn" onClick={() => setShowEditModal(false)}>
+              <button
+                className="close-btn"
+                onClick={() => setShowEditModal(false)}
+              >
                 <X size={20} />
               </button>
             </div>
-            
+
             <div className="modal-body">
-              <form onSubmit={(e) => { e.preventDefault(); handleUpdateCustomer(); }}>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleUpdateCustomer();
+                }}
+              >
                 <div className="form-grid">
                   <div className="form-group">
                     <label>First Name *</label>
@@ -1008,7 +1414,7 @@ const Customers: React.FC = () => {
                       required
                     />
                   </div>
-                  
+
                   <div className="form-group">
                     <label>Last Name *</label>
                     <input
@@ -1019,7 +1425,7 @@ const Customers: React.FC = () => {
                       required
                     />
                   </div>
-                  
+
                   <div className="form-group">
                     <label>Email</label>
                     <input
@@ -1029,7 +1435,7 @@ const Customers: React.FC = () => {
                       onChange={handleInputChange}
                     />
                   </div>
-                  
+
                   <div className="form-group">
                     <label>Phone</label>
                     <input
@@ -1039,7 +1445,7 @@ const Customers: React.FC = () => {
                       onChange={handleInputChange}
                     />
                   </div>
-                  
+
                   <div className="form-group">
                     <label>Date of Birth</label>
                     <input
@@ -1049,7 +1455,7 @@ const Customers: React.FC = () => {
                       onChange={handleInputChange}
                     />
                   </div>
-                  
+
                   <div className="form-group">
                     <label>City</label>
                     <input
@@ -1059,7 +1465,7 @@ const Customers: React.FC = () => {
                       onChange={handleInputChange}
                     />
                   </div>
-                  
+
                   <div className="form-group full-width">
                     <label>Address</label>
                     <textarea
@@ -1069,7 +1475,7 @@ const Customers: React.FC = () => {
                       rows={3}
                     />
                   </div>
-                  
+
                   <div className="form-group">
                     <label>Country</label>
                     <input
@@ -1079,7 +1485,7 @@ const Customers: React.FC = () => {
                       onChange={handleInputChange}
                     />
                   </div>
-                  
+
                   <div className="form-group">
                     <label>
                       <input
@@ -1092,9 +1498,13 @@ const Customers: React.FC = () => {
                     </label>
                   </div>
                 </div>
-                
+
                 <div className="modal-actions">
-                  <button type="button" className="cancel-btn" onClick={() => setShowEditModal(false)}>
+                  <button
+                    type="button"
+                    className="cancel-btn"
+                    onClick={() => setShowEditModal(false)}
+                  >
                     Cancel
                   </button>
                   <button type="submit" className="submit-btn">
@@ -1109,27 +1519,36 @@ const Customers: React.FC = () => {
 
       {/* Feedback View Modal */}
       {showFeedbackModal && selectedFeedback && (
-        <div className="modal-overlay" onClick={() => setShowFeedbackModal(false)}>
-          <div className="modal-content feedback-modal" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="modal-overlay"
+          onClick={() => setShowFeedbackModal(false)}
+        >
+          <div
+            className="modal-content feedback-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="modal-header">
               <h3>Customer Feedback Details</h3>
-              <button className="close-btn" onClick={() => setShowFeedbackModal(false)}>
+              <button
+                className="close-btn"
+                onClick={() => setShowFeedbackModal(false)}
+              >
                 <X size={20} />
               </button>
             </div>
-            
+
             <div className="modal-body">
               <div className="feedback-details">
                 <div className="detail-row">
                   <label>Customer Name:</label>
-                  <span>{selectedFeedback.full_name}</span>
+                  <span>{selectedFeedback.customer_name}</span>
                 </div>
-                
+
                 <div className="detail-row">
                   <label>Email:</label>
                   <span>{selectedFeedback.email}</span>
                 </div>
-                
+
                 <div className="detail-row">
                   <label>Rating:</label>
                   <div className="star-rating">
@@ -1137,53 +1556,48 @@ const Customers: React.FC = () => {
                       <Star
                         key={star}
                         size={16}
-                        fill={star <= selectedFeedback.rating ? '#fbbf24' : 'none'}
-                        stroke={star <= selectedFeedback.rating ? '#fbbf24' : '#e5e7eb'}
+                        fill={
+                          star <= selectedFeedback.rating ? "#fbbf24" : "none"
+                        }
+                        stroke={
+                          star <= selectedFeedback.rating
+                            ? "#fbbf24"
+                            : "#e5e7eb"
+                        }
                       />
                     ))}
-                    <span className="rating-text">({selectedFeedback.rating}/5)</span>
+                    <span className="rating-text">
+                      ({selectedFeedback.rating}/5)
+                    </span>
                   </div>
                 </div>
-                
+
                 <div className="detail-row">
                   <label>Date:</label>
                   <span>{formatDate(selectedFeedback.created_at)}</span>
                 </div>
-                
+
                 <div className="detail-row full-width">
                   <label>Feedback:</label>
                   <div className="feedback-content">
-                    {selectedFeedback.feedback}
+                    {selectedFeedback.feedback_text}
                   </div>
                 </div>
               </div>
             </div>
-            
+
             <div className="modal-footer">
-              <button 
-                type="button" 
-                className="cancel-btn" 
+              <button
+                type="button"
+                className="cancel-btn"
                 onClick={() => setShowFeedbackModal(false)}
               >
                 Close
-              </button>
-              <button 
-                type="button" 
-                className="delete-btn" 
-                onClick={() => {
-                  setShowFeedbackModal(false);
-                  handleDeleteFeedback(selectedFeedback.id);
-                }}
-              >
-                <Trash2 size={16} />
-                Delete Feedback
               </button>
             </div>
           </div>
         </div>
       )}
-
-      {/* Customer Orders Modal */}
     </div>
   );
 };

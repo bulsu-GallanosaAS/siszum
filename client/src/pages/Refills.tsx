@@ -101,7 +101,6 @@ const Refills: React.FC = () => {
     const statusClasses = {
       'pending': 'status-pending',
       'in_progress': 'status-ongoing',
-      'ongoing': 'status-ongoing', 
       'completed': 'status-completed',
       'cancelled': 'status-cancelled'
     };
@@ -109,7 +108,6 @@ const Refills: React.FC = () => {
     const statusLabels = {
       'pending': 'Pending',
       'in_progress': 'In Progress',
-      'ongoing': 'In Progress',
       'completed': 'Completed',
       'cancelled': 'Cancelled'
     };
@@ -127,8 +125,9 @@ const Refills: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="refills-page">
-        <div className="loading-spinner">Loading refill requests...</div>
+      <div className="loading-container">
+        <div className="loader" />
+        <p>Loading refill requests</p>
       </div>
     );
   }

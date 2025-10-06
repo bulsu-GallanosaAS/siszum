@@ -13,8 +13,9 @@ router.get('/', authenticateToken, async (req, res) => {
       status,
       table_code
     } = req.query;
-
+   
     const offset = (Number(page) - 1) * Number(limit);
+    
     let whereConditions = [];
     let queryParams: any[] = [];
 
@@ -55,26 +56,24 @@ router.get('/', authenticateToken, async (req, res) => {
       LIMIT ${limit} OFFSET ${offset}
     `;
 
-    queryParams.push(Number(limit), offset);
     const refills = await executeQuery(refillsQuery, queryParams);
-
-    // Get total count for pagination
+    
     const countQuery = `
       SELECT COUNT(*) as total
       FROM refill_requests rr
       ${whereClause}
     `;
     
-    const countParams = queryParams.slice(0, -2); // Remove limit and offset
-    const [{ total }] = await executeQuery(countQuery, countParams);
+    const [{ total }] = await executeQuery(countQuery, queryParams);
 
     // Get statistics
     const statsQuery = `
       SELECT 
         COUNT(*) as total_requests,
         COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_requests,
-        COUNT(CASE WHEN status = 'on-going' THEN 1 END) as ongoing_requests,
-        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_requests
+        COUNT(CASE WHEN status = 'in_progress' THEN 1 END) as ongoing_requests,
+        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_requests,
+        COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_requests
       FROM refill_requests
     `;
     const [stats] = await executeQuery(statsQuery);

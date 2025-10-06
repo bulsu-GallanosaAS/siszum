@@ -473,8 +473,8 @@ const Reservations: React.FC = () => {
   if (loading) {
     return (
       <div className="loading-container">
-        <div className="loading-spinner"></div>
-        <p>Loading reservations...</p>
+        <div className="loader" />
+        <p>Loading reservations</p>
       </div>
     );
   }

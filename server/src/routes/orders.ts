@@ -84,7 +84,6 @@ router.get('/', async (req, res) => {
       LIMIT ${limit} OFFSET ${offset}
     `;
     
-    queryParams.push(limit, offset);
     const [ordersResult] = await pool.execute<RowDataPacket[]>(ordersQuery, queryParams);
     
     res.json({

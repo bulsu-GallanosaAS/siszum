@@ -235,8 +235,8 @@ const Orders: React.FC = () => {
   if (loading) {
     return (
       <div className="loading-container">
-        <div className="loading-spinner"></div>
-        <p>Loading orders data...</p>
+        <div className="loader" />
+        <p>Loading orders</p>
       </div>
     );
   }
@@ -367,7 +367,7 @@ const Orders: React.FC = () => {
               <tr key={order.id}>
                 <td className="order-id">{order.order_code || order.id}</td>
                 <td className="customer-id">{order.customer_name || `#${order.customer_id}`}</td>
-                <td className="status">
+                <td>
                   <span 
                     className="status-badge"
                     style={{ backgroundColor: getStatusColor(order.status) }}

@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, Minus, Search, ShoppingCart, User, X } from 'lucide-react';
-import { apiClient } from '../services';
-import { useAuth } from '../context/AuthContext';
-import './POS.css';
+import React, { useState, useEffect } from "react";
+import { Plus, Minus, Search, ShoppingCart, User, X } from "lucide-react";
+import { apiClient } from "../services";
+import { useAuth } from "../context/AuthContext";
+import "./POS.css";
 
 interface MenuItem {
   id: number;
@@ -26,13 +26,14 @@ interface CartItem {
   quantity: number;
   total: number;
   discount?: number;
+  is_unlimited: boolean;
 }
 
 const POS: React.FC = () => {
   const { user } = useAuth();
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [orderNumber, setOrderNumber] = useState(1);
   const [subtotal, setSubtotal] = useState(0);
   const [serviceCharge] = useState(20);
@@ -40,11 +41,15 @@ const POS: React.FC = () => {
   const [additionalFees, setAdditionalFees] = useState(0);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("");
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showTableModal, setShowTableModal] = useState(false);
-  const [customerName, setCustomerName] = useState('');
-  const [tableNumber, setTableNumber] = useState('');
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [customerName, setCustomerName] = useState("");
+  const [tableNumber, setTableNumber] = useState("");
+  const [seniorCitizenCount, setSeniorCitizenCount] = useState(0);
+  const [pwdCount, setPwdCount] = useState(0);
+  const [processingPayment, setProcessingPayment] = useState(false);
 
   useEffect(() => {
     fetchMenuData();
@@ -52,8 +57,14 @@ const POS: React.FC = () => {
   }, []);
 
   const calculateTotals = React.useCallback(() => {
-    const newSubtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const newDiscount = cart.reduce((sum, item) => sum + (item.discount || 0), 0);
+    const newSubtotal = cart.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0
+    );
+    const newDiscount = cart.reduce(
+      (sum, item) => sum + (item.discount || 0),
+      0
+    );
     const newTotal = newSubtotal + serviceCharge + additionalFees - newDiscount;
 
     setSubtotal(newSubtotal);
@@ -68,12 +79,12 @@ const POS: React.FC = () => {
   const fetchMenuData = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get('/inventory/items');
+      const response = await apiClient.get("/inventory/items");
       if (response.data.success) {
         setMenuItems(response.data.data);
       }
     } catch (error) {
-      console.error('Error fetching menu data:', error);
+      console.error("Error fetching menu data:", error);
     } finally {
       setLoading(false);
     }
@@ -81,39 +92,46 @@ const POS: React.FC = () => {
 
   const fetchLastOrderNumber = async () => {
     try {
-      const response = await apiClient.get('/orders/stats/overview');
+      const response = await apiClient.get("/orders/stats/overview");
       if (response.data.success) {
         const stats = response.data.data;
         setOrderNumber((stats.total_orders || 0) + 1);
       }
     } catch (error) {
-      console.error('Error fetching last order number:', error);
+      console.error("Error fetching last order number:", error);
     }
   };
 
   const addToCart = (item: MenuItem) => {
     const price = Number(item.selling_price);
-
-    const existingItem = cart.find(cartItem => cartItem.id === item.id);
+    const existingItem = cart.find((cartItem) => cartItem.id === item.id);
 
     if (existingItem) {
-      setCart(cart.map(cartItem =>
-        cartItem.id === item.id
-          ? {
-              ...cartItem,
-              quantity: cartItem.quantity + 1,
-              total: Number(((cartItem.quantity + 1) * cartItem.price).toFixed(2))
-            }
-          : cartItem
-      ));
+      setCart(
+        cart.map((cartItem) =>
+          cartItem.id === item.id
+            ? {
+                ...cartItem,
+                quantity: cartItem.quantity + 1,
+                total: Number(
+                  ((cartItem.quantity + 1) * cartItem.price).toFixed(2)
+                ),
+              }
+            : cartItem
+        )
+      );
     } else {
-      setCart([...cart, {
-        id: item.id,
-        name: item.name,
-        price: price,
-        quantity: 1,
-        total: Number(price.toFixed(2))
-      }]);
+      setCart([
+        ...cart,
+        {
+          id: item.id,
+          name: item.name,
+          price: price,
+          quantity: 1,
+          total: Number(price.toFixed(2)),
+          is_unlimited: item.is_unlimited,
+        },
+      ]);
     }
   };
 
@@ -123,51 +141,112 @@ const POS: React.FC = () => {
       return;
     }
 
-    setCart(cart.map(item =>
-      item.id === id
-        ? { ...item, quantity, total: Number((quantity * item.price).toFixed(2)) }
-        : item
-    ));
+    setCart(
+      cart.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              quantity,
+              total: Number((quantity * item.price).toFixed(2)),
+            }
+          : item
+      )
+    );
   };
 
   const removeFromCart = (id: number) => {
-    setCart(cart.filter(item => item.id !== id));
+    setCart(cart.filter((item) => item.id !== id));
   };
 
-  const applyDiscount = (type: 'senior' | 'pwd' | 'clear') => {
-    let updatedCart;
+  const applyDiscount = (type: "senior" | "pwd" | "clear") => {
+    if (type === "clear") { // clear all discounts
+      const updatedCart = cart.map((item) => ({
+        ...item,
+        discount: 0,
+        total: Number((item.price * item.quantity).toFixed(2)),
+      }));
+      setCart(updatedCart);
+      setSeniorCitizenCount(0);
+      setPwdCount(0);
+      return;
+    }
 
-    switch (type) {
-      case 'senior':
-      case 'pwd':
-        updatedCart = cart.map(item => {
-          const discountPerItem = item.price * 0.20;
-          const discountedTotal = (item.price - discountPerItem) * item.quantity;
-          return { ...item, discount: discountPerItem * item.quantity, total: Number(discountedTotal.toFixed(2)) };
-        });
-        setCart(updatedCart);
-        break;
+    // total disocunt to apply
+    const totalDiscounts = seniorCitizenCount + pwdCount;
 
-      case 'clear':
-        updatedCart = cart.map(item => ({
+    if (totalDiscounts === 0) {
+      alert(
+        "Please set the number of Senior Citizens/PWDs in the discount modal first."
+      );
+      setShowDiscountModal(true);
+      return;
+    }
+
+    // sort unlimited items by price (cheapest first)
+    const unlimitedItems = cart
+      .filter((item) => item.is_unlimited)
+      .sort((a, b) => a.price - b.price);
+
+    if (unlimitedItems.length === 0) {
+      alert(
+        "No unlimited menu items found in cart. Discounts only apply to unlimited menu items."
+      );
+      return;
+    }
+
+    let remainingDiscounts = totalDiscounts;
+    const discountsMap: Record<string, number> = {}; // track discounts by item id
+
+    // apply discounts start from cheapest unlimited items
+    for (const item of unlimitedItems) {
+      if (remainingDiscounts <= 0) break;
+
+      const discountsForThisItem = Math.min(remainingDiscounts, item.quantity);
+      discountsMap[item.id] = discountsForThisItem;
+      remainingDiscounts -= discountsForThisItem;
+    }
+
+    const updatedCart = cart.map((item) => {
+      if (!item.is_unlimited) {
+        return {
           ...item,
           discount: 0,
-          total: Number((item.price * item.quantity).toFixed(2))
-        }));
-        setCart(updatedCart);
-        break;
+          total: Number((item.price * item.quantity).toFixed(2)),
+        };
+      }
 
-      default:
-        break;
+      const discountsForThisItem = discountsMap[item.id] || 0;
+      const discountPerPerson = item.price * 0.2;
+      const discountAmount = discountPerPerson * discountsForThisItem;
+
+      return {
+        ...item,
+        discount: discountAmount,
+        total: Number((item.price * item.quantity - discountAmount).toFixed(2)),
+      };
+    });
+
+    if (remainingDiscounts > 0) {
+      const totalUnlimitedQuantity = unlimitedItems.reduce(
+        (sum, item) => sum + item.quantity,
+        0
+      );
+      alert(
+        `You have ${totalDiscounts} PWD/Senior customers but only ${totalUnlimitedQuantity} unlimited menu items. Discounts were applied to ${
+          totalDiscounts - remainingDiscounts
+        } items only.`
+      );
     }
+
+    setCart(updatedCart);
   };
 
-  const applyFee = (type: 'leftover' | 'clear') => {
+  const applyFee = (type: "leftover" | "clear") => {
     switch (type) {
-      case 'leftover':
+      case "leftover":
         setAdditionalFees(25);
         break;
-      case 'clear':
+      case "clear":
         setAdditionalFees(0);
         break;
       default:
@@ -184,12 +263,12 @@ const POS: React.FC = () => {
     setCart([]);
     setDiscount(0);
     setAdditionalFees(0);
-    setOrderNumber(prev => prev + 1);
+    setOrderNumber((prev) => prev + 1);
   };
 
   const saveOrder = async () => {
     if (cart.length === 0) {
-      alert('Please add items to cart before saving order');
+      alert("Please add items to cart before saving order");
       return;
     }
 
@@ -199,43 +278,43 @@ const POS: React.FC = () => {
   const handleSaveWithTable = async () => {
     try {
       const orderData = {
-        customer_name: customerName || 'Walk-in Customer',
-        order_type: 'dine_in',
+        customer_name: customerName || "Walk-in Customer",
+        order_type: "dine_in",
         table_id: tableNumber ? parseInt(tableNumber) : null,
-        items: cart.map(item => ({
+        items: cart.map((item) => ({
           item_id: item.id,
           quantity: item.quantity,
           unit_price: item.price,
           total_price: item.total,
-          discount: item.discount || 0
+          discount: item.discount || 0,
         })),
         subtotal: subtotal,
         service_charge: serviceCharge,
         additional_fees: additionalFees,
         discount: discount,
         total_amount: total,
-        status: 'pending'
+        status: "pending",
       };
 
-      const response = await apiClient.post('/orders', orderData);
+      const response = await apiClient.post("/orders", orderData);
       if (response.data.success) {
-        alert('Order saved successfully!');
+        alert("Order saved successfully!");
         resetOrder();
         setShowTableModal(false);
-        setCustomerName('');
-        setTableNumber('');
+        setCustomerName("");
+        setTableNumber("");
       } else {
-        throw new Error('Failed to save order');
+        throw new Error("Failed to save order");
       }
     } catch (error) {
-      console.error('Order saving failed:', error);
-      alert('Order saving failed. Please try again.');
+      console.error("Order saving failed:", error);
+      alert("Order saving failed. Please try again.");
     }
   };
 
   const processPayment = async () => {
     if (cart.length === 0) {
-      alert('Please add items to cart before processing payment');
+      alert("Please add items to cart before processing payment");
       return;
     }
 
@@ -248,21 +327,23 @@ const POS: React.FC = () => {
 
   const processSelectedPayment = async () => {
     if (!selectedPaymentMethod) {
-      alert('Please select a payment method');
+      alert("Please select a payment method");
       return;
     }
 
+    setProcessingPayment(true);
+
     try {
       const orderData = {
-        customer_name: customerName || 'Walk-in Customer',
-        order_type: 'dine_in',
+        customer_name: customerName || "Walk-in Customer",
+        order_type: "dine_in",
         table_id: tableNumber ? parseInt(tableNumber) : null,
-        items: cart.map(item => ({
+        items: cart.map((item) => ({
           item_id: item.id,
           quantity: item.quantity,
           unit_price: item.price,
           total_price: item.total,
-          discount: item.discount || 0
+          discount: item.discount || 0,
         })),
         subtotal: subtotal,
         service_charge: serviceCharge,
@@ -270,42 +351,45 @@ const POS: React.FC = () => {
         discount: discount,
         total_amount: total,
         payment_method: selectedPaymentMethod,
-        status: 'completed'
+        status: "completed",
       };
 
-      const response = await apiClient.post('/orders', orderData);
+      const response = await apiClient.post("/orders", orderData);
       if (response.data.success) {
-        alert('Payment processed successfully!');
+        alert("Payment processed successfully!");
         resetOrder();
         setShowPaymentModal(false);
-        setSelectedPaymentMethod('');
-        setCustomerName('');
-        setTableNumber('');
+        setSelectedPaymentMethod("");
+        setCustomerName("");
+        setTableNumber("");
       } else {
-        throw new Error('Failed to process payment');
+        throw new Error("Failed to process payment");
       }
     } catch (error) {
-      console.error('Payment processing failed:', error);
-      alert('Payment processing failed. Please try again.');
+      console.error("Payment processing failed:", error);
+      alert("Payment processing failed. Please try again.");
+    } finally {
+      setProcessingPayment(false);
     }
   };
 
-  const filteredMenuItems = menuItems.filter(item =>
-    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.description?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredMenuItems = menuItems.filter(
+    (item) =>
+      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.description?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (loading) {
     return (
-      <div className="pos-loading">
-        <div className="loading-spinner">Loading POS...</div>
+      <div className="loading-container">
+        <div className="loader" />
+        <p>Loading POS</p>
       </div>
     );
   }
 
   return (
     <div className="pos-container">
-      {}
       <div className="pos-header">
         <div className="logo-section">
           <h2>Admin POS</h2>
@@ -315,34 +399,38 @@ const POS: React.FC = () => {
             <User size={24} />
           </div>
           <div className="customer-info">
-            <span className="customer-name">{user?.first_name || 'Admin'}</span>
-            <span className="customer-role">{user?.last_name || user?.role || 'Staff'}</span>
+            <span className="customer-name">{user?.first_name || "Admin"}</span>
+            <span className="customer-role">
+              {user?.last_name || user?.role || "Staff"}
+            </span>
           </div>
         </div>
       </div>
 
       <div className="pos-main">
-        {}
         <div className="menu-section">
-          {}
           <div className="discount-section">
             <h3>Discounts</h3>
             <div className="discount-buttons">
-              <button 
+              <button
                 className="discount-btn senior"
-                onClick={() => applyDiscount('senior')}
+                onClick={() => setShowDiscountModal(true)}
               >
-                SENIOR<br />DISCOUNT
+                SENIOR
+                <br />
+                DISCOUNT
               </button>
-              <button 
+              <button
                 className="discount-btn pwd"
-                onClick={() => applyDiscount('pwd')}
+                onClick={() => setShowDiscountModal(true)}
               >
-                PWD<br />DISCOUNT
+                PWD
+                <br />
+                DISCOUNT
               </button>
-              <button 
+              <button
                 className="clear-discount-btn"
-                onClick={() => applyDiscount('clear')}
+                onClick={() => applyDiscount("clear")}
               >
                 CLEAR DISCOUNT
               </button>
@@ -350,31 +438,29 @@ const POS: React.FC = () => {
 
             <h3>Additional Fees</h3>
             <div className="charge-buttons">
-              <button 
+              <button
                 className="charge-btn leftover"
-                onClick={() => applyFee('leftover')}
+                onClick={() => applyFee("leftover")}
               >
-                LEFT OVERS<br />FEE
+                LEFT OVERS
+                <br />
+                FEE
               </button>
-              <button 
+              <button
                 className="clear-fee-btn"
-                onClick={() => applyFee('clear')}
+                onClick={() => applyFee("clear")}
               >
                 CLEAR FEE
               </button>
             </div>
 
             <div className="clear-section">
-              <button 
-                className="clear-btn"
-                onClick={() => clearAll()}
-              >
+              <button className="clear-btn" onClick={() => clearAll()}>
                 CLEAR ALL
               </button>
             </div>
           </div>
 
-          {}
           <div className="search-section">
             <div className="search-box">
               <Search size={20} />
@@ -387,20 +473,21 @@ const POS: React.FC = () => {
             </div>
           </div>
 
-          {}
           {searchTerm && (
             <div className="search-results">
               <h3>Search Results</h3>
               <div className="search-items">
                 {filteredMenuItems.length > 0 ? (
-                  filteredMenuItems.map(item => (
+                  filteredMenuItems.map((item) => (
                     <button
                       key={item.id}
                       className="search-item"
                       onClick={() => addToCart(item)}
                     >
                       <div className="search-item-name">{item.name}</div>
-                      <div className="search-item-price">₱{item.selling_price}</div>
+                      <div className="search-item-price">
+                        ₱{item.selling_price}
+                      </div>
                     </button>
                   ))
                 ) : (
@@ -410,58 +497,71 @@ const POS: React.FC = () => {
             </div>
           )}
 
-          {}
           <div className="category-section">
             <h3>Unlimited Menu</h3>
             <div className="category-buttons">
               <div className="category-row">
-                <button 
+                <button
                   className="category-btn active"
                   onClick={() => {
-                    const item = menuItems.find(item => 
-                      item.name.toLowerCase().includes('set a') || 
-                      item.name.toLowerCase().includes('unli pork')
+                    const item = menuItems.find(
+                      (item) =>
+                        item.name.toLowerCase().includes("set a") ||
+                        item.name.toLowerCase().includes("unli pork")
                     );
                     if (item) addToCart(item);
                   }}
                 >
-                  SET A<br />UNLI PORK
+                  SET A<br />
+                  UNLI PORK
                 </button>
-                <button 
+                <button
                   className="category-btn"
                   onClick={() => {
-                    const item = menuItems.find(item => 
-                      item.name.toLowerCase().includes('set b') || 
-                      (item.name.toLowerCase().includes('unli') && item.name.toLowerCase().includes('chicken'))
+                    const item = menuItems.find(
+                      (item) =>
+                        item.name.toLowerCase().includes("set b") ||
+                        (item.name.toLowerCase().includes("unli") &&
+                          item.name.toLowerCase().includes("chicken"))
                     );
                     if (item) addToCart(item);
                   }}
                 >
-                  SET B<br />UNLI PORK<br />& CHICKEN
+                  SET B<br />
+                  UNLI PORK
+                  <br />& CHICKEN
                 </button>
-                <button 
+                <button
                   className="category-btn"
                   onClick={() => {
-                    const item = menuItems.find(item => 
-                      item.name.toLowerCase().includes('set c') || 
-                      item.name.toLowerCase().includes('premium pork')
+                    const item = menuItems.find(
+                      (item) =>
+                        item.name.toLowerCase().includes("set c") ||
+                        item.name.toLowerCase().includes("premium pork")
                     );
                     if (item) addToCart(item);
                   }}
                 >
-                  SET C<br />UNLI<br />PREMIUM PORK
+                  SET C<br />
+                  UNLI
+                  <br />
+                  PREMIUM PORK
                 </button>
-                <button 
+                <button
                   className="category-btn"
                   onClick={() => {
-                    const item = menuItems.find(item => 
-                      item.name.toLowerCase().includes('set d') || 
-                      (item.name.toLowerCase().includes('premium') && item.name.toLowerCase().includes('chicken'))
+                    const item = menuItems.find(
+                      (item) =>
+                        item.name.toLowerCase().includes("set d") ||
+                        (item.name.toLowerCase().includes("premium") &&
+                          item.name.toLowerCase().includes("chicken"))
                     );
                     if (item) addToCart(item);
                   }}
                 >
-                  SET D<br />UNLI PREMIUM PORK<br />& CHICKEN
+                  SET D<br />
+                  UNLI PREMIUM PORK
+                  <br />& CHICKEN
                 </button>
               </div>
             </div>
@@ -469,88 +569,106 @@ const POS: React.FC = () => {
             <h3>Ala Carte Menu</h3>
             <div className="category-buttons">
               <div className="category-row">
-                <button 
+                <button
                   className="category-btn"
                   onClick={() => {
-                    const item = menuItems.find(item => 
-                      item.name.toLowerCase().includes('samg pork') || 
-                      item.name.toLowerCase().includes('pork on cup')
+                    const item = menuItems.find(
+                      (item) =>
+                        item.name.toLowerCase().includes("samg pork") ||
+                        item.name.toLowerCase().includes("pork on cup")
                     );
                     if (item) addToCart(item);
                   }}
                 >
-                  SAMG PORK<br />ON CUP
+                  SAMG PORK
+                  <br />
+                  ON CUP
                 </button>
-                <button 
+                <button
                   className="category-btn"
                   onClick={() => {
-                    const item = menuItems.find(item => 
-                      item.name.toLowerCase().includes('samg chicken') || 
-                      item.name.toLowerCase().includes('chicken on cup')
+                    const item = menuItems.find(
+                      (item) =>
+                        item.name.toLowerCase().includes("samg chicken") ||
+                        item.name.toLowerCase().includes("chicken on cup")
                     );
                     if (item) addToCart(item);
                   }}
                 >
-                  SAMG CHICKEN<br />ON CUP
+                  SAMG CHICKEN
+                  <br />
+                  ON CUP
                 </button>
-                <button 
+                <button
                   className="category-btn"
                   onClick={() => {
-                    const item = menuItems.find(item => 
-                      item.name.toLowerCase().includes('samg beef') || 
-                      item.name.toLowerCase().includes('beef on cup')
+                    const item = menuItems.find(
+                      (item) =>
+                        item.name.toLowerCase().includes("samg beef") ||
+                        item.name.toLowerCase().includes("beef on cup")
                     );
                     if (item) addToCart(item);
                   }}
                 >
-                  SAMG BEEF<br />ON CUP
+                  SAMG BEEF
+                  <br />
+                  ON CUP
                 </button>
-                <button 
+                <button
                   className="category-btn"
                   onClick={() => {
-                    const item = menuItems.find(item => 
-                      item.name.toLowerCase().includes('chicken poppers') ||
-                      item.product_code === 'CHICKEN-POP'
+                    const item = menuItems.find(
+                      (item) =>
+                        item.name.toLowerCase().includes("chicken poppers") ||
+                        item.product_code === "CHICKEN-POP"
                     );
                     if (item) addToCart(item);
                   }}
                 >
-                  CHICKEN<br />POPPERS ON CUP
+                  CHICKEN
+                  <br />
+                  POPPERS ON CUP
                 </button>
               </div>
               <div className="category-row">
-                <button 
+                <button
                   className="category-btn"
                   onClick={() => {
-                    const item = menuItems.find(item => 
-                      item.name.toLowerCase().includes('korean') || 
-                      item.name.toLowerCase().includes('meet')
+                    const item = menuItems.find(
+                      (item) =>
+                        item.name.toLowerCase().includes("korean") ||
+                        item.name.toLowerCase().includes("meet")
                     );
                     if (item) addToCart(item);
                   }}
                 >
-                  KOREAN MEET<br />ON CUP
+                  KOREAN MEET
+                  <br />
+                  ON CUP
                 </button>
-                <button 
+                <button
                   className="category-btn"
                   onClick={() => {
-
-                    const item = menuItems.find(item => 
-                      item.name.toLowerCase().includes('chicken poppers') ||
-                      item.product_code === 'CHICKEN-POP'
+                    const item = menuItems.find(
+                      (item) =>
+                        item.name.toLowerCase().includes("chicken poppers") ||
+                        item.product_code === "CHICKEN-POP"
                     );
                     if (item) addToCart(item);
                   }}
                 >
-                  CHICKEN<br />POPPERS
+                  CHICKEN
+                  <br />
+                  POPPERS
                 </button>
-                <button 
+                <button
                   className="category-btn"
                   onClick={() => {
-                    const item = menuItems.find(item => 
-                      item.name.toLowerCase().includes('cheese') && 
-                      !item.name.toLowerCase().includes('tub') && 
-                      !item.name.toLowerCase().includes('unli')
+                    const item = menuItems.find(
+                      (item) =>
+                        item.name.toLowerCase().includes("cheese") &&
+                        !item.name.toLowerCase().includes("tub") &&
+                        !item.name.toLowerCase().includes("unli")
                     );
                     if (item) addToCart(item);
                   }}
@@ -563,66 +681,80 @@ const POS: React.FC = () => {
             <h3>Side Dishes</h3>
             <div className="category-buttons">
               <div className="category-row">
-                <button 
+                <button
                   className="category-btn"
                   onClick={() => {
-                    const item = menuItems.find(item => 
-                      item.name.toLowerCase().includes('cheese') && 
-                      item.name.toLowerCase().includes('tub')
+                    const item = menuItems.find(
+                      (item) =>
+                        item.name.toLowerCase().includes("cheese") &&
+                        item.name.toLowerCase().includes("tub")
                     );
                     if (item) addToCart(item);
                   }}
                 >
-                  CHEESE<br />ON TUB
+                  CHEESE
+                  <br />
+                  ON TUB
                 </button>
-                <button 
+                <button
                   className="category-btn"
                   onClick={() => {
-                    const item = menuItems.find(item => 
-                      item.name.toLowerCase().includes('fishcake') || 
-                      item.name.toLowerCase().includes('fish cake')
+                    const item = menuItems.find(
+                      (item) =>
+                        item.name.toLowerCase().includes("fishcake") ||
+                        item.name.toLowerCase().includes("fish cake")
                     );
                     if (item) addToCart(item);
                   }}
                 >
-                  FISHCAKE<br />ON TUB
+                  FISHCAKE
+                  <br />
+                  ON TUB
                 </button>
-                <button 
+                <button
                   className="category-btn"
                   onClick={() => {
-                    const item = menuItems.find(item => 
-                      item.name.toLowerCase().includes('eggroll') || 
-                      item.name.toLowerCase().includes('egg roll')
+                    const item = menuItems.find(
+                      (item) =>
+                        item.name.toLowerCase().includes("eggroll") ||
+                        item.name.toLowerCase().includes("egg roll")
                     );
                     if (item) addToCart(item);
                   }}
                 >
-                  EGGROLL<br />ON TUB
+                  EGGROLL
+                  <br />
+                  ON TUB
                 </button>
-                <button 
+                <button
                   className="category-btn"
                   onClick={() => {
-                    const item = menuItems.find(item => 
-                      item.name.toLowerCase().includes('potatoes') || 
-                      item.name.toLowerCase().includes('potato')
+                    const item = menuItems.find(
+                      (item) =>
+                        item.name.toLowerCase().includes("potatoes") ||
+                        item.name.toLowerCase().includes("potato")
                     );
                     if (item) addToCart(item);
                   }}
                 >
-                  BABY POTATOES<br />ON TUB
+                  BABY POTATOES
+                  <br />
+                  ON TUB
                 </button>
               </div>
               <div className="category-row">
-                <button 
+                <button
                   className="category-btn"
                   onClick={() => {
-                    const item = menuItems.find(item => 
-                      item.name.toLowerCase().includes('kimchi')
+                    const item = menuItems.find((item) =>
+                      item.name.toLowerCase().includes("kimchi")
                     );
                     if (item) addToCart(item);
                   }}
                 >
-                  KIMCHI<br />ON TUB
+                  KIMCHI
+                  <br />
+                  ON TUB
                 </button>
               </div>
             </div>
@@ -630,12 +762,14 @@ const POS: React.FC = () => {
             <h3>Ad Ons</h3>
             <div className="category-buttons">
               <div className="category-row">
-                <button 
+                <button
                   className="category-btn"
                   onClick={() => {
-                    const item = menuItems.find(item => 
-                      item.name.toLowerCase().includes('unli cheese') || 
-                      (item.name.toLowerCase().includes('unlimited') && item.name.toLowerCase().includes('cheese'))
+                    const item = menuItems.find(
+                      (item) =>
+                        item.name.toLowerCase().includes("unli cheese") ||
+                        (item.name.toLowerCase().includes("unlimited") &&
+                          item.name.toLowerCase().includes("cheese"))
                     );
                     if (item) addToCart(item);
                   }}
@@ -647,10 +781,9 @@ const POS: React.FC = () => {
           </div>
         </div>
 
-        {}
         <div className="cart-section">
           <div className="order-header">
-            <h3>ORDER # {orderNumber.toString().padStart(4, '0')}</h3>
+            <h3>ORDER # {orderNumber.toString().padStart(4, "0")}</h3>
           </div>
 
           <div className="cart-items">
@@ -665,19 +798,25 @@ const POS: React.FC = () => {
                   <div className="cart-item-content">
                     <div className="cart-item-text">
                       {item.name}
-                      <span className="cart-item-quantity">{item.quantity}</span>
+                      <span className="cart-item-quantity">
+                        {item.quantity}
+                      </span>
                     </div>
                     <div className="cart-item-controls">
                       <button
                         className="qty-btn"
-                        onClick={() => updateCartItemQuantity(item.id, item.quantity - 1)}
+                        onClick={() =>
+                          updateCartItemQuantity(item.id, item.quantity - 1)
+                        }
                       >
                         <Minus size={12} />
                       </button>
                       <span className="qty">{item.quantity}</span>
                       <button
                         className="qty-btn"
-                        onClick={() => updateCartItemQuantity(item.id, item.quantity + 1)}
+                        onClick={() =>
+                          updateCartItemQuantity(item.id, item.quantity + 1)
+                        }
                       >
                         <Plus size={12} />
                       </button>
@@ -708,7 +847,7 @@ const POS: React.FC = () => {
             </div>
             {discount > 0 && (
               <div className="summary-row discount-row">
-                <span>DISCOUNT:</span>
+                <span>SC/PWD DISCOUNT:</span>
                 <span>-₱{discount.toFixed(2)}</span>
               </div>
             )}
@@ -725,7 +864,9 @@ const POS: React.FC = () => {
           </div>
 
           <div className="action-buttons">
-            <button className="save-btn" onClick={saveOrder}>SAVE</button>
+            <button className="save-btn" onClick={saveOrder}>
+              SAVE
+            </button>
             <button className="payment-btn" onClick={processPayment}>
               PAYMENT
             </button>
@@ -733,13 +874,129 @@ const POS: React.FC = () => {
         </div>
       </div>
 
-      {}
+      {showDiscountModal && (
+        <div className="modal-overlay">
+          <div className="modal-content payment-modal">
+            <div className="modal-header">
+              <h2>Senior Citizen / PWD Discount</h2>
+              <button
+                className="close-btn"
+                onClick={() => setShowDiscountModal(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="discount-section">
+                <label className="discount-label">Senior Citizen</label>
+                <div className="discount-controls">
+                  <button
+                    className="disc-btn minus-btn"
+                    onClick={() =>
+                      setSeniorCitizenCount(Math.max(0, seniorCitizenCount - 1))
+                    }
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    value={seniorCitizenCount === 0 ? "" : seniorCitizenCount}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === "") {
+                        setSeniorCitizenCount(0);
+                      } else {
+                        const numValue = Math.max(0, parseInt(value) || 0);
+                        setSeniorCitizenCount(numValue);
+                      }
+                    }}
+                    placeholder="0"
+                    className="discount-input"
+                    min="0"
+                  />
+                  <button
+                    className="disc-btn plus-btn"
+                    onClick={() =>
+                      setSeniorCitizenCount(
+                        Math.min(10, seniorCitizenCount + 1)
+                      )
+                    }
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              <div className="discount-section">
+                <label className="discount-label">Person with Disability</label>
+                <div className="discount-controls">
+                  <button
+                    className="disc-btn minus-btn"
+                    onClick={() => setPwdCount(Math.max(0, pwdCount - 1))}
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    value={pwdCount === 0 ? "" : pwdCount}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === "") {
+                        setPwdCount(0);
+                      } else {
+                        const numValue = Math.max(0, parseInt(value) || 0);
+                        setPwdCount(numValue);
+                      }
+                    }}
+                    placeholder="0"
+                    className="discount-input"
+                    min="0"
+                  />
+                  <button
+                    className="disc-btn plus-btn"
+                    onClick={() => setPwdCount(Math.min(10, pwdCount + 1))}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              <div className="discount-actions">
+                <button
+                  className="discount-clear-btn"
+                  onClick={() => {
+                    setSeniorCitizenCount(0);
+                    setPwdCount(0);
+                  }}
+                >
+                  Clear Discount
+                </button>
+                <button
+                  className="okay-btn"
+                  onClick={() => {
+                    applyDiscount("senior");
+                    setShowDiscountModal(false);
+                  }}
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showTableModal && (
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
               <h2>Table Information</h2>
-              <button className="close-btn" onClick={() => setShowTableModal(false)}>×</button>
+              <button
+                className="close-btn"
+                onClick={() => setShowTableModal(false)}
+              >
+                ×
+              </button>
             </div>
             <div className="modal-body">
               <div className="form-group">
@@ -764,7 +1021,10 @@ const POS: React.FC = () => {
               </div>
             </div>
             <div className="modal-actions">
-              <button className="cancel-btn" onClick={() => setShowTableModal(false)}>
+              <button
+                className="cancel-btn"
+                onClick={() => setShowTableModal(false)}
+              >
                 Cancel
               </button>
               <button className="save-btn" onClick={handleSaveWithTable}>
@@ -775,13 +1035,17 @@ const POS: React.FC = () => {
         </div>
       )}
 
-      {}
       {showPaymentModal && (
         <div className="modal-overlay">
           <div className="modal-content payment-modal">
             <div className="modal-header">
               <h2>Payment Method</h2>
-              <button className="close-btn" onClick={() => setShowPaymentModal(false)}>×</button>
+              <button
+                className="close-btn"
+                onClick={() => setShowPaymentModal(false)}
+              >
+                ×
+              </button>
             </div>
             <div className="modal-body">
               <div className="order-summary-modal">
@@ -790,15 +1054,15 @@ const POS: React.FC = () => {
                   <div className="receipt-details">
                     <div className="receipt-row">
                       <span>Order #:</span>
-                      <span>{orderNumber.toString().padStart(4, '0')}</span>
+                      <span>{orderNumber.toString().padStart(4, "0")}</span>
                     </div>
                     <div className="receipt-row">
                       <span>Customer:</span>
-                      <span>{customerName || 'Walk-in Customer'}</span>
+                      <span>{customerName || "Walk-in Customer"}</span>
                     </div>
                     <div className="receipt-row">
                       <span>Table:</span>
-                      <span>{tableNumber || 'N/A'}</span>
+                      <span>{tableNumber || "N/A"}</span>
                     </div>
                   </div>
 
@@ -809,7 +1073,9 @@ const POS: React.FC = () => {
                           <span className="item-name">{item.name}</span>
                           <span className="item-qty">x{item.quantity}</span>
                         </div>
-                        <span className="item-price">₱{item.total.toFixed(2)}</span>
+                        <span className="item-price">
+                          ₱{item.total.toFixed(2)}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -825,7 +1091,7 @@ const POS: React.FC = () => {
                     </div>
                     {discount > 0 && (
                       <div className="total-row discount-row">
-                        <span>Discount:</span>
+                        <span>SC/PWD Discount:</span>
                         <span>-₱{discount.toFixed(2)}</span>
                       </div>
                     )}
@@ -846,27 +1112,35 @@ const POS: React.FC = () => {
               <div className="payment-methods">
                 <h3>Select Payment Method</h3>
                 <div className="payment-buttons">
-                  <button 
-                    className={`payment-method-btn cash ${selectedPaymentMethod === 'cash' ? 'selected' : ''}`}
-                    onClick={() => handlePayment('cash')}
+                  <button
+                    className={`payment-method-btn cash ${
+                      selectedPaymentMethod === "cash" ? "selected" : ""
+                    }`}
+                    onClick={() => handlePayment("cash")}
                   >
                     💵 Cash
                   </button>
-                  <button 
-                    className={`payment-method-btn card ${selectedPaymentMethod === 'card' ? 'selected' : ''}`}
-                    onClick={() => handlePayment('card')}
+                  <button
+                    className={`payment-method-btn card ${
+                      selectedPaymentMethod === "card" ? "selected" : ""
+                    }`}
+                    onClick={() => handlePayment("card")}
                   >
-                    
                     📱 GCash
                   </button>
                 </div>
                 {selectedPaymentMethod && (
                   <div className="payment-action">
-                    <button 
+                    <button
                       className="pay-button"
                       onClick={processSelectedPayment}
+                      disabled={processingPayment}
                     >
-                      Pay ₱{total.toFixed(2)}
+                      {processingPayment ? (
+                        <>Processing...</>
+                      ) : (
+                        `Pay ₱${total.toFixed(2)}`
+                      )}
                     </button>
                   </div>
                 )}
