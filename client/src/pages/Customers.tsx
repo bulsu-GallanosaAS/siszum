@@ -235,7 +235,7 @@ const Customers: React.FC = () => {
         const response = await apiClient.patch(
           `/customers/feedback/${feedbackId}`,
           {
-            status: "approved",
+            status: "resolved",
           }
         );
 
