@@ -164,11 +164,11 @@ router.patch('/feedback/:id', authenticateToken, async (req, res) => {
     const { status } = req.body;
 
     // validate status
-    const validStatuses = ['pending', 'reviewed', 'approved'];
+    const validStatuses = ['pending', 'reviewed', 'resolved'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid status. Must be one of: pending, reviewed, approved'
+        message: 'Invalid status. Must be one of: pending, reviewed, resolved'
       });
     }
 
