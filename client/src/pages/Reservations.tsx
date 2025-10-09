@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, Users, Phone, MapPin, Search, Eye, Edit, Trash2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Users, Phone, MapPin, Search, Eye, Trash2 } from 'lucide-react';
 import { apiClient } from '../services/apiClient';
 import './Reservations.css';
 
@@ -110,23 +110,6 @@ const Reservations: React.FC = () => {
     setShowView(true);
   };
 
-  const handleEdit = (reservation: Reservation) => {
-    setSelectedReservation(reservation);
-    setEditForm({
-      customer_name: reservation.customer_name,
-      phone: reservation.phone,
-      email: reservation.email || '',
-      table_id: reservation.table_id,
-      occasion: reservation.occasion || '',
-      number_of_guests: reservation.number_of_guests,
-      reservation_date: reservation.reservation_date,
-      reservation_time: reservation.reservation_time,
-      duration_hours: reservation.duration_hours,
-      payment_amount: reservation.payment_amount,
-      notes: reservation.notes || ''
-    });
-    setShowEdit(true);
-  };
 
   const handleDelete = async (reservationId: number) => {
     if (window.confirm('Are you sure you want to delete this reservation?')) {
@@ -419,13 +402,7 @@ const Reservations: React.FC = () => {
                     >
                       <Eye size={14} />
                     </button>
-                    <button 
-                      className="action-btn edit" 
-                      title="Edit"
-                      onClick={() => handleEdit(reservation)}
-                    >
-                      <Edit size={14} />
-                    </button>
+                    
                     <button 
                       className="action-btn delete" 
                       title="Delete"
