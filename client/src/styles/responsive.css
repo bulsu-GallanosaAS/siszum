@@ -1,0 +1,139 @@
+/* Global responsive helpers and breakpoints
+   - Import this file from src/index.tsx (it's imported automatically by the patch)
+   - Use utility classes below in component CSS or markup to get consistent mobile/tablet behavior.
+
+   Breakpoints:
+     --breakpoint-tablet: 768px
+     --breakpoint-mobile: 480px
+*/
+:root {
+  --breakpoint-tablet: 768px;
+  --breakpoint-mobile: 480px;
+  --container-max-width: 1200px;
+  --gutter: 16px;
+  --font-size-base: 16px;
+}
+
+/* Base responsive adjustments */
+html, body {
+  box-sizing: border-box;
+  -webkit-text-size-adjust: 100%; /* Prevent font size adjust after orientation change on iOS */
+}
+*, *:before, *:after { box-sizing: inherit; }
+
+/* Fluid container used across pages */
+.container {
+  width: 100%;
+  max-width: var(--container-max-width);
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--gutter);
+  padding-right: var(--gutter);
+}
+
+/* Images and media */
+img, video, picture {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Responsive tables wrapper */
+.responsive-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+.responsive-table-wrapper table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+/* Utility helpers */
+.hide-mobile { display: initial; }
+.show-mobile { display: none; }
+
+/* Flex helpers */
+.row { display: flex; gap: 16px; }
+.column { display: flex; flex-direction: column; }
+.stack { display: flex; gap: 12px; align-items: center; }
+.stack--wrap { flex-wrap: wrap; }
+
+/* Buttons and form controls stretch on small screens */
+input[type="text"], input[type="tel"], input[type="email"], input[type="number"], select, textarea, button {
+  font-size: 1rem;
+}
+
+/* Modal responsiveness helper (use .modal-responsive on modal element) */
+.modal-responsive {
+  max-width: 720px;
+  margin: 24px auto;
+}
+
+/* Global small-screen typography scaling */
+@media (max-width: 1024px) {
+  :root { --font-size-base: 15px; }
+}
+
+@media (max-width: 768px) {
+  :root { --font-size-base: 15px; }
+
+  /* Most layout should stack on tablet */
+  .row { flex-direction: column; }
+  .stack { gap: 10px; }
+
+  /* Hide some verbose elements on tablet if desired */
+  .hide-tablet { display: none !important; }
+
+  /* Show mobile-only elements */
+  .hide-mobile { display: none !important; }
+  .show-mobile { display: block !important; }
+
+  /* Make tables scrollable and more usable */
+  .reservations-table, .transactions-table, .inventory-table {
+    width: 100%;
+  }
+  .modal-responsive { width: calc(100% - 48px); }
+}
+
+@media (max-width: 480px) {
+  :root { --font-size-base: 14px; }
+
+  html { font-size: 14px; }
+
+  /* Tighten gutters on small phones */
+  .container { padding-left: 12px; padding-right: 12px; }
+
+  /* Stack controls and ensure full-width touch targets */
+  .view-mode-buttons, .header-actions { display: flex; flex-direction: column; gap: 8px; }
+  .btn { width: 100%; }
+
+  /* Form fields full width */
+  input[type="text"], input[type="tel"], input[type="email"], input[type="number"], select, textarea {
+    width: 100%;
+  }
+
+  /* Card/grid responsive changes */
+  .reservations-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+
+  /* Tables become horizontally scrollable */
+  .responsive-table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Modals full screen on very small devices */
+  .modal-responsive { width: 100%; height: 100%; max-width: 100%; margin: 0; border-radius: 0; }
+}
+
+/* Usage examples (comments):
+
+1) Make a table responsive:
+  <div class="responsive-table-wrapper">
+    <table class="inventory-table">...</table>
+  </div>
+
+2) Hide elements on mobile:
+  <div class="hide-mobile">This shows on desktop/tablet only</div>
+
+3) Show element only on mobile:
+  <div class="show-mobile">This shows on phones only</div>
+
+4) Use .container for page-level consistent gutters and max-width.
+*/
