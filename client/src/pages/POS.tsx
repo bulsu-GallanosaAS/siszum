@@ -50,6 +50,7 @@ const POS: React.FC = () => {
   const [seniorCitizenCount, setSeniorCitizenCount] = useState(0);
   const [pwdCount, setPwdCount] = useState(0);
   const [processingPayment, setProcessingPayment] = useState(false);
+const [groupedMenuItems, setGroupedMenuItems] = useState<Record<string, MenuItem[]>>({});
 
   useEffect(() => {
     fetchMenuData();
@@ -81,7 +82,25 @@ const POS: React.FC = () => {
       setLoading(true);
       const response = await apiClient.get("/inventory/items");
       if (response.data.success) {
-        setMenuItems(response.data.data);
+        const items: MenuItem[] = response.data.data;
+        setMenuItems(items);
+        console.log("menu data: ", response);
+
+      // Group items by category
+      const groupedItems = items.reduce((acc: Record<string, MenuItem[]>, item: MenuItem) => {
+        const category = item.category_name || 'Other'; // Make sure 'category' exists in your MenuItem interface
+        if (!acc[category]) {
+          acc[category] = [];
+        }
+        acc[category].push(item);
+        return acc;
+      }, {});
+
+      setGroupedMenuItems(groupedItems);
+        console.log("menu data: ", response);
+
+      } else {
+        console.log("menu data else: ", response);
       }
     } catch (error) {
       console.error("Error fetching menu data:", error);
@@ -159,7 +178,8 @@ const POS: React.FC = () => {
   };
 
   const applyDiscount = (type: "senior" | "pwd" | "clear") => {
-    if (type === "clear") { // clear all discounts
+    if (type === "clear") {
+      // clear all discounts
       const updatedCart = cart.map((item) => ({
         ...item,
         discount: 0,
@@ -388,6 +408,7 @@ const POS: React.FC = () => {
     );
   }
 
+
   return (
     <div className="pos-container">
       <div className="pos-header">
@@ -497,287 +518,30 @@ const POS: React.FC = () => {
             </div>
           )}
 
+
+          {/* get all unlimited menu */}
           <div className="category-section">
-            <h3>Unlimited Menu</h3>
-            <div className="category-buttons">
-              <div className="category-row">
-                <button
-                  className="category-btn active"
-                  onClick={() => {
-                    const item = menuItems.find(
-                      (item) =>
-                        item.name.toLowerCase().includes("set a") ||
-                        item.name.toLowerCase().includes("unli pork")
-                    );
-                    if (item) addToCart(item);
-                  }}
-                >
-                  SET A<br />
-                  UNLI PORK
-                </button>
-                <button
-                  className="category-btn"
-                  onClick={() => {
-                    const item = menuItems.find(
-                      (item) =>
-                        item.name.toLowerCase().includes("set b") ||
-                        (item.name.toLowerCase().includes("unli") &&
-                          item.name.toLowerCase().includes("chicken"))
-                    );
-                    if (item) addToCart(item);
-                  }}
-                >
-                  SET B<br />
-                  UNLI PORK
-                  <br />& CHICKEN
-                </button>
-                <button
-                  className="category-btn"
-                  onClick={() => {
-                    const item = menuItems.find(
-                      (item) =>
-                        item.name.toLowerCase().includes("set c") ||
-                        item.name.toLowerCase().includes("premium pork")
-                    );
-                    if (item) addToCart(item);
-                  }}
-                >
-                  SET C<br />
-                  UNLI
-                  <br />
-                  PREMIUM PORK
-                </button>
-                <button
-                  className="category-btn"
-                  onClick={() => {
-                    const item = menuItems.find(
-                      (item) =>
-                        item.name.toLowerCase().includes("set d") ||
-                        (item.name.toLowerCase().includes("premium") &&
-                          item.name.toLowerCase().includes("chicken"))
-                    );
-                    if (item) addToCart(item);
-                  }}
-                >
-                  SET D<br />
-                  UNLI PREMIUM PORK
-                  <br />& CHICKEN
-                </button>
-              </div>
-            </div>
+{Object.entries(groupedMenuItems)
+  .sort(([a], [b]) => a.localeCompare(a, undefined, { numeric: true }))
+  .map(([category, items]) => (
+    <div key={category} className="category-section">
+      <h3 className="category-title">{category}</h3>
 
-            <h3>Ala Carte Menu</h3>
-            <div className="category-buttons">
-              <div className="category-row">
-                <button
-                  className="category-btn"
-                  onClick={() => {
-                    const item = menuItems.find(
-                      (item) =>
-                        item.name.toLowerCase().includes("samg pork") ||
-                        item.name.toLowerCase().includes("pork on cup")
-                    );
-                    if (item) addToCart(item);
-                  }}
-                >
-                  SAMG PORK
-                  <br />
-                  ON CUP
-                </button>
-                <button
-                  className="category-btn"
-                  onClick={() => {
-                    const item = menuItems.find(
-                      (item) =>
-                        item.name.toLowerCase().includes("samg chicken") ||
-                        item.name.toLowerCase().includes("chicken on cup")
-                    );
-                    if (item) addToCart(item);
-                  }}
-                >
-                  SAMG CHICKEN
-                  <br />
-                  ON CUP
-                </button>
-                <button
-                  className="category-btn"
-                  onClick={() => {
-                    const item = menuItems.find(
-                      (item) =>
-                        item.name.toLowerCase().includes("samg beef") ||
-                        item.name.toLowerCase().includes("beef on cup")
-                    );
-                    if (item) addToCart(item);
-                  }}
-                >
-                  SAMG BEEF
-                  <br />
-                  ON CUP
-                </button>
-                <button
-                  className="category-btn"
-                  onClick={() => {
-                    const item = menuItems.find(
-                      (item) =>
-                        item.name.toLowerCase().includes("chicken poppers") ||
-                        item.product_code === "CHICKEN-POP"
-                    );
-                    if (item) addToCart(item);
-                  }}
-                >
-                  CHICKEN
-                  <br />
-                  POPPERS ON CUP
-                </button>
-              </div>
-              <div className="category-row">
-                <button
-                  className="category-btn"
-                  onClick={() => {
-                    const item = menuItems.find(
-                      (item) =>
-                        item.name.toLowerCase().includes("korean") ||
-                        item.name.toLowerCase().includes("meet")
-                    );
-                    if (item) addToCart(item);
-                  }}
-                >
-                  KOREAN MEET
-                  <br />
-                  ON CUP
-                </button>
-                <button
-                  className="category-btn"
-                  onClick={() => {
-                    const item = menuItems.find(
-                      (item) =>
-                        item.name.toLowerCase().includes("chicken poppers") ||
-                        item.product_code === "CHICKEN-POP"
-                    );
-                    if (item) addToCart(item);
-                  }}
-                >
-                  CHICKEN
-                  <br />
-                  POPPERS
-                </button>
-                <button
-                  className="category-btn"
-                  onClick={() => {
-                    const item = menuItems.find(
-                      (item) =>
-                        item.name.toLowerCase().includes("cheese") &&
-                        !item.name.toLowerCase().includes("tub") &&
-                        !item.name.toLowerCase().includes("unli")
-                    );
-                    if (item) addToCart(item);
-                  }}
-                >
-                  CHEESE
-                </button>
-              </div>
-            </div>
-
-            <h3>Side Dishes</h3>
-            <div className="category-buttons">
-              <div className="category-row">
-                <button
-                  className="category-btn"
-                  onClick={() => {
-                    const item = menuItems.find(
-                      (item) =>
-                        item.name.toLowerCase().includes("cheese") &&
-                        item.name.toLowerCase().includes("tub")
-                    );
-                    if (item) addToCart(item);
-                  }}
-                >
-                  CHEESE
-                  <br />
-                  ON TUB
-                </button>
-                <button
-                  className="category-btn"
-                  onClick={() => {
-                    const item = menuItems.find(
-                      (item) =>
-                        item.name.toLowerCase().includes("fishcake") ||
-                        item.name.toLowerCase().includes("fish cake")
-                    );
-                    if (item) addToCart(item);
-                  }}
-                >
-                  FISHCAKE
-                  <br />
-                  ON TUB
-                </button>
-                <button
-                  className="category-btn"
-                  onClick={() => {
-                    const item = menuItems.find(
-                      (item) =>
-                        item.name.toLowerCase().includes("eggroll") ||
-                        item.name.toLowerCase().includes("egg roll")
-                    );
-                    if (item) addToCart(item);
-                  }}
-                >
-                  EGGROLL
-                  <br />
-                  ON TUB
-                </button>
-                <button
-                  className="category-btn"
-                  onClick={() => {
-                    const item = menuItems.find(
-                      (item) =>
-                        item.name.toLowerCase().includes("potatoes") ||
-                        item.name.toLowerCase().includes("potato")
-                    );
-                    if (item) addToCart(item);
-                  }}
-                >
-                  BABY POTATOES
-                  <br />
-                  ON TUB
-                </button>
-              </div>
-              <div className="category-row">
-                <button
-                  className="category-btn"
-                  onClick={() => {
-                    const item = menuItems.find((item) =>
-                      item.name.toLowerCase().includes("kimchi")
-                    );
-                    if (item) addToCart(item);
-                  }}
-                >
-                  KIMCHI
-                  <br />
-                  ON TUB
-                </button>
-              </div>
-            </div>
-
-            <h3>Ad Ons</h3>
-            <div className="category-buttons">
-              <div className="category-row">
-                <button
-                  className="category-btn"
-                  onClick={() => {
-                    const item = menuItems.find(
-                      (item) =>
-                        item.name.toLowerCase().includes("unli cheese") ||
-                        (item.name.toLowerCase().includes("unlimited") &&
-                          item.name.toLowerCase().includes("cheese"))
-                    );
-                    if (item) addToCart(item);
-                  }}
-                >
-                  UNLI CHEESE
-                </button>
-              </div>
-            </div>
+      <div className="category-buttons">
+        <div className="category-row">
+          {items.map((item) => (
+            <button
+              key={item.id}
+              className="category-btn"
+              onClick={() => addToCart(item)}
+            >
+              {item.name}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  ))}
           </div>
         </div>
 

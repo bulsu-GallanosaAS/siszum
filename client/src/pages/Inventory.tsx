@@ -137,25 +137,34 @@ const Inventory: React.FC = () => {
         return;
       }
 
-      const productData = {
-        product_code: formData.product_code.trim(),
-        name: formData.name.trim(),
-        description: formData.description.trim() || null,
-        category_id: parseInt(formData.category_id),
-        selling_price: parseFloat(formData.selling_price),
-        purchase_price: formData.purchase_price ? parseFloat(formData.purchase_price) : null,
-        quantity_in_stock: formData.quantity_in_stock ? parseInt(formData.quantity_in_stock) : 0,
-        unit_type: formData.unit_type || 'piece',
-        availability: formData.availability || 'available',
-        image_url: null, 
-        is_unlimited: Boolean(formData.is_unlimited),
-        is_premium: Boolean(formData.is_premium)
-      };
+      const formDataToSend = new FormData();
+          // Append all form data
+    formDataToSend.append('product_code', formData.product_code.trim());
+    formDataToSend.append('name', formData.name.trim());
+    formDataToSend.append('description', formData.description.trim() || '');
+    formDataToSend.append('category_id', formData.category_id);
+    formDataToSend.append('selling_price', formData.selling_price);
+    formDataToSend.append('purchase_price', formData.purchase_price || '');
+    formDataToSend.append('quantity_in_stock', formData.quantity_in_stock || '0');
+    formDataToSend.append('unit_type', formData.unit_type);
+    formDataToSend.append('availability', formData.availability);
+        // FIX: Apply the same boolean handling
+    formDataToSend.append('is_unlimited', formData.is_unlimited ? 'true' : 'false');
+    formDataToSend.append('is_premium', formData.is_premium ? 'true' : 'false');
 
-      console.log('Sending product data:', productData);
 
-      const response = await apiClient.post('/inventory/items', productData);
-      
+        // Append image file if exists
+    const imageInput = document.getElementById('image-upload') as HTMLInputElement;
+    if (imageInput && imageInput.files && imageInput.files[0]) {
+      formDataToSend.append('image', imageInput.files[0]);
+    }
+
+  const response = await apiClient.post('/inventory/items', formDataToSend, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
       console.log('Add product response:', response.data);
       
       if (response.data.success) {
@@ -197,9 +206,12 @@ const Inventory: React.FC = () => {
       is_unlimited: false,
       is_premium: false
     });
-    setImagePreview(null);
-    const input = document.getElementById('image-upload') as HTMLInputElement;
-    if (input) input.value = '';
+  setImagePreview(null);
+  // Reset both file inputs
+  const addInput = document.getElementById('image-upload') as HTMLInputElement;
+  const editInput = document.getElementById('edit-image-upload') as HTMLInputElement;
+  if (addInput) addInput.value = '';
+  if (editInput) editInput.value = '';
   };
 
   const handleViewItem = (item: InventoryItem) => {
@@ -222,6 +234,7 @@ const Inventory: React.FC = () => {
       is_unlimited: item.is_unlimited,
       is_premium: item.is_premium
     });
+    setImagePreview(null);
     setShowEditModal(true);
   };
 
@@ -244,21 +257,40 @@ const Inventory: React.FC = () => {
     if (!selectedItem) return;
 
     try {
-      const productData = {
-        ...formData,
-        category_id: parseInt(formData.category_id),
-        selling_price: parseFloat(formData.selling_price),
-        purchase_price: formData.purchase_price ? parseFloat(formData.purchase_price) : null,
-        quantity_in_stock: formData.quantity_in_stock ? parseInt(formData.quantity_in_stock) : 0
-      };
-
-      const response = await apiClient.put(`/inventory/items/${selectedItem.id}`, productData);
       
+    const formDataToSend = new FormData();
+    
+    // Append all form data
+    formDataToSend.append('product_code', formData.product_code);
+    formDataToSend.append('name', formData.name);
+    formDataToSend.append('description', formData.description);
+    formDataToSend.append('category_id', formData.category_id);
+    formDataToSend.append('selling_price', formData.selling_price);
+    formDataToSend.append('purchase_price', formData.purchase_price || '');
+    formDataToSend.append('quantity_in_stock', formData.quantity_in_stock || '0');
+    formDataToSend.append('unit_type', formData.unit_type);
+    formDataToSend.append('availability', formData.availability);
+  formDataToSend.append('is_unlimited', formData.is_unlimited ? 'true' : 'false');
+    formDataToSend.append('is_premium', formData.is_premium ? 'true' : 'false');
+
+        // Append image file if exists - use edit-specific file input
+    const imageInput = document.getElementById('edit-image-upload') as HTMLInputElement;
+    if (imageInput && imageInput.files && imageInput.files[0]) {
+      formDataToSend.append('image', imageInput.files[0]);
+    }
+
+    const response = await apiClient.put(`/inventory/items/${selectedItem.id}`, formDataToSend, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
       if (response.data.success) {
         alert('Product updated successfully!');
         setShowEditModal(false);
         resetForm();
         setSelectedItem(null);
+        setImagePreview(null);
         fetchInventoryData(); // Refresh the list
       }
     } catch (error: any) {
@@ -1092,8 +1124,8 @@ const Inventory: React.FC = () => {
                   <div className="detail-item">
                     <label>Type:</label>
                     <div className="badges">
-                      {selectedItem.is_unlimited && <span className="badge unlimited">Unlimited</span>}
-                      {selectedItem.is_premium && <span className="badge premium">Premium</span>}
+                      {!!selectedItem.is_unlimited && <span className="badge unlimited">Unlimited</span>}
+                      {!!selectedItem.is_premium && <span className="badge premium">Premium</span>}
                     </div>
                   </div>
 
@@ -1143,6 +1175,71 @@ const Inventory: React.FC = () => {
             </div>
             
             <form className="add-product-form" onSubmit={(e) => { e.preventDefault(); handleUpdateProduct(); }}>
+               {/* Hidden file input for edit */}
+        <input
+          type="file"
+          id="edit-image-upload"
+          accept="image/*"
+          onChange={handleImageSelect}
+          style={{ display: 'none' }}
+        />
+
+        <div className="form-group">
+          <div className="image-upload-section">
+            <div 
+              className="image-placeholder" 
+              onClick={() => document.getElementById('edit-image-upload')?.click()}
+              onDragOver={handleDragOver}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              {imagePreview ? (
+                <div className="image-preview">
+                  <img src={imagePreview} alt="Preview" />
+                  <button 
+                    type="button" 
+                    className="remove-image-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeImage();
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : selectedItem.image_url ? (
+                <div className="image-preview">
+                  <img src={selectedItem.image_url} alt={selectedItem.name} />
+                  <div className="image-overlay">
+                    <p>Click to change image</p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <Package size={40} />
+                  <p>Drag image here or click to upload</p>
+                  <button 
+                    type="button" 
+                    className="browse-btn" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      document.getElementById('edit-image-upload')?.click();
+                    }}
+                  >
+                    Browse Image
+                  </button>
+                </>
+              )}
+            </div>
+            {selectedItem.image_url && !imagePreview && (
+              <div className="current-image-note">
+                <p>Click image to replace.</p>
+              </div>
+            )}
+          </div>
+        </div>
+
               <div className="form-row">
                 <div className="form-group">
                   <label htmlFor="edit-name">Item Name</label>

@@ -122,6 +122,9 @@ app.use('*', (req, res) => {
   });
 });
 
+// image
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 // Use environment PORT if set, fallback to 5000 for local testing
 const PORT = process.env.PORT || 5000;
 

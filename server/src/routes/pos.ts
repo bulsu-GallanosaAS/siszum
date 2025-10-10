@@ -1,5 +1,7 @@
 import express from 'express';
 import { authenticateToken } from '../middleware/auth';
+import { pool } from '../config/database';
+import { RowDataPacket } from 'mysql2';
 
 const router = express.Router();
 
