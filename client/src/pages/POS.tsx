@@ -264,7 +264,7 @@ const [groupedMenuItems, setGroupedMenuItems] = useState<Record<string, MenuItem
   const applyFee = (type: "leftover" | "clear") => {
     switch (type) {
       case "leftover":
-        setAdditionalFees(25);
+        setAdditionalFees(100);
         break;
       case "clear":
         setAdditionalFees(0);
