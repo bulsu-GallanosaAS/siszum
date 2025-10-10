@@ -146,11 +146,11 @@ router.patch('/feedback/:id', auth_1.authenticateToken, async (req, res) => {
         const { id } = req.params;
         const { status } = req.body;
         // validate status
-        const validStatuses = ['pending', 'reviewed', 'approved'];
+        const validStatuses = ['pending', 'reviewed', 'resolved'];
         if (!validStatuses.includes(status)) {
             return res.status(400).json({
                 success: false,
-                message: 'Invalid status. Must be one of: pending, reviewed, approved'
+                message: 'Invalid status. Must be one of: pending, reviewed, resolved'
             });
         }
         const updateQuery = 'UPDATE customer_feedback SET status = ?, updated_at = NOW() WHERE id = ?';
