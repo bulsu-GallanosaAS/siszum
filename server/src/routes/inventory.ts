@@ -1,14 +1,19 @@
-import express from 'express';
-import { authenticateToken } from '../middleware/auth';
-import { pool } from '../config/database';
-import { RowDataPacket, OkPacket } from 'mysql2';
+import express from "express";
+import { authenticateToken } from "../middleware/auth";
+import { pool } from "../config/database";
+import { RowDataPacket, OkPacket } from "mysql2";
+import upload from "../middleware/multer";
+import {
+  deleteFromCloudinary,
+  uploadToCloudinary,
+} from "../utils/cloudinaryUpload";
 
 const router = express.Router();
 
 // Get all inventory items
-router.get('/items', authenticateToken, async (req, res) => {
+router.get("/items", authenticateToken, async (req, res) => {
   try {
-    const [rows] = await pool.execute(`
+    const [rows] = (await pool.execute(`
       SELECT 
         mi.id,
         mi.product_code,
@@ -30,67 +35,67 @@ router.get('/items', authenticateToken, async (req, res) => {
       FROM menu_items mi
       LEFT JOIN menu_categories mc ON mi.category_id = mc.id
       ORDER BY mc.sort_order, mi.name
-    `) as [RowDataPacket[], any];
+    `)) as [RowDataPacket[], any];
 
     res.json({
       success: true,
-      data: rows
+      data: rows,
     });
   } catch (error) {
-    console.error('Error fetching inventory:', error);
+    console.error("Error fetching inventory:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch inventory data'
+      message: "Failed to fetch inventory data",
     });
   }
 });
 
 // Get inventory categories
-router.get('/categories', authenticateToken, async (req, res) => {
+router.get("/categories", authenticateToken, async (req, res) => {
   try {
-    const [rows] = await pool.execute(`
+    const [rows] = (await pool.execute(`
       SELECT id, name, description, sort_order
       FROM menu_categories
       WHERE is_active = TRUE
       ORDER BY sort_order
-    `) as [RowDataPacket[], any];
+    `)) as [RowDataPacket[], any];
 
     res.json({
       success: true,
-      data: rows
+      data: rows,
     });
   } catch (error) {
-    console.error('Error fetching categories:', error);
+    console.error("Error fetching categories:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch categories'
+      message: "Failed to fetch categories",
     });
   }
 });
 
 // Get inventory statistics
-router.get('/stats', authenticateToken, async (req, res) => {
+router.get("/stats", authenticateToken, async (req, res) => {
   try {
-    const [totalItems] = await pool.execute(`
+    const [totalItems] = (await pool.execute(`
       SELECT COUNT(*) as total FROM menu_items
-    `) as [RowDataPacket[], any];
+    `)) as [RowDataPacket[], any];
 
     // Calculate total sales revenue from completed orders
-    const [totalValue] = await pool.execute(`
+    const [totalValue] = (await pool.execute(`
       SELECT COALESCE(SUM(total_amount), 0) as total_value 
       FROM orders
       WHERE status = 'completed'
-    `) as [RowDataPacket[], any];
+    `)) as [RowDataPacket[], any];
 
-    const [lowStock] = await pool.execute(`
+    const [lowStock] = (await pool.execute(`
       SELECT COUNT(*) as low_stock FROM menu_items
       WHERE quantity_in_stock <= 10 AND is_unlimited = FALSE
-    `) as [RowDataPacket[], any];
+    `)) as [RowDataPacket[], any];
 
-    const [outOfStock] = await pool.execute(`
+    const [outOfStock] = (await pool.execute(`
       SELECT COUNT(*) as out_of_stock FROM menu_items
       WHERE quantity_in_stock = 0 AND is_unlimited = FALSE
-    `) as [RowDataPacket[], any];
+    `)) as [RowDataPacket[], any];
 
     res.json({
       success: true,
@@ -98,167 +103,319 @@ router.get('/stats', authenticateToken, async (req, res) => {
         total_items: totalItems[0].total,
         total_value: totalValue[0].total_value || 0,
         low_stock: lowStock[0].low_stock,
-        out_of_stock: outOfStock[0].out_of_stock
-      }
+        out_of_stock: outOfStock[0].out_of_stock,
+      },
     });
   } catch (error) {
-    console.error('Error fetching inventory stats:', error);
+    console.error("Error fetching inventory stats:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch inventory statistics'
+      message: "Failed to fetch inventory statistics",
     });
   }
 });
 
 // Add new inventory item
-router.post('/items', authenticateToken, async (req, res) => {
-  try {
-    const {
-      product_code,
-      name,
-      description,
-      category_id,
-      selling_price,
-      purchase_price,
-      purchase_value,
-      quantity_in_stock,
-      unit_type,
-      availability,
-      image_url,
-      is_unlimited,
-      is_premium
-    } = req.body;
+router.post(
+  "/items",
+  authenticateToken,
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      const {
+        product_code,
+        name,
+        description,
+        category_id,
+        selling_price,
+        purchase_price,
+        quantity_in_stock,
+        unit_type,
+        availability,
+        is_unlimited,
+        is_premium,
+      } = req.body;
 
-    // Validate required fields
-    if (!product_code || !name || !category_id || selling_price === undefined || selling_price === null) {
-      return res.status(400).json({
+      const parsedIsUnlimited =
+        is_unlimited === "true" || is_unlimited === true ? 1 : 0;
+      const parsedIsPremium =
+        is_premium === "true" || is_premium === true ? 1 : 0;
+
+      // Validate required fields
+      if (
+        !product_code ||
+        !name ||
+        !category_id ||
+        selling_price === undefined ||
+        selling_price === null
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Missing required fields: product_code, name, category_id, and selling_price are required",
+        });
+      }
+
+      let image_url = null;
+      let image_public_id = null;
+
+      // upload image to Cloudinary if provided
+      if (req.file) {
+        try {
+          const uploadResult = await uploadToCloudinary(req.file.buffer);
+          image_url = uploadResult.secure_url;
+          image_public_id = uploadResult.public_id;
+        } catch (uploadError) {
+          console.error("Cloudinary upload error:", uploadError);
+          return res.status(500).json({
+            success: false,
+            message: "Failed to upload image",
+          });
+        }
+      }
+
+      // Sanitize numeric values
+      const sanitizedQuantity =
+        quantity_in_stock === null ||
+        quantity_in_stock === undefined ||
+        quantity_in_stock === ""
+          ? 0
+          : parseInt(quantity_in_stock);
+      const sanitizedPurchasePrice =
+        purchase_price === null ||
+        purchase_price === undefined ||
+        purchase_price === ""
+          ? null
+          : parseFloat(purchase_price);
+      const sanitizedPurchaseValue =
+        sanitizedPurchasePrice && sanitizedQuantity
+          ? sanitizedPurchasePrice * sanitizedQuantity
+          : 0;
+
+          const [result] = (await pool.execute(
+            `
+          INSERT INTO menu_items (
+            product_code, name, description, category_id, selling_price,
+            purchase_price, purchase_value, quantity_in_stock, unit_type,
+            availability, image_url, image_public_id, is_unlimited, is_premium
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          product_code,
+          name,
+          description || null,
+          parseInt(category_id),
+          parseFloat(selling_price),
+          sanitizedPurchasePrice,
+          sanitizedPurchaseValue,
+          sanitizedQuantity,
+          unit_type || "piece",
+          availability || "available",
+          image_url,
+          image_public_id,
+          parsedIsUnlimited,
+          parsedIsPremium,
+        ]
+      )) as [OkPacket, any];
+
+      res.json({
+        success: true,
+        message: "Inventory item added successfully",
+        data: { id: result.insertId },
+      });
+    } catch (error) {
+      console.error("Error adding inventory item:", error);
+      res.status(500).json({
         success: false,
-        message: 'Missing required fields: product_code, name, category_id, and selling_price are required'
+        message: "Failed to add inventory item",
+        error: error instanceof Error ? error.message : "Unknown error",
       });
     }
-
-    // Sanitize numeric values
-    const sanitizedQuantity = quantity_in_stock === null || quantity_in_stock === undefined || quantity_in_stock === '' ? 0 : parseInt(quantity_in_stock);
-    const sanitizedPurchasePrice = purchase_price === null || purchase_price === undefined || purchase_price === '' ? null : parseFloat(purchase_price);
-    const sanitizedPurchaseValue = sanitizedPurchasePrice && sanitizedQuantity ? sanitizedPurchasePrice * sanitizedQuantity : 0;
-
-    const [result] = await pool.execute(`
-      INSERT INTO menu_items (
-        product_code, name, description, category_id, selling_price,
-        purchase_price, purchase_value, quantity_in_stock, unit_type,
-        availability, image_url, is_unlimited, is_premium
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [
-      product_code, 
-      name, 
-      description || null, 
-      parseInt(category_id), 
-      parseFloat(selling_price),
-      sanitizedPurchasePrice, 
-      sanitizedPurchaseValue, 
-      sanitizedQuantity, 
-      unit_type || 'piece',
-      availability || 'available', 
-      image_url || null, 
-      Boolean(is_unlimited), 
-      Boolean(is_premium)
-    ]) as [OkPacket, any];
-
-    res.json({
-      success: true,
-      message: 'Inventory item added successfully',
-      data: { id: result.insertId }
-    });
-  } catch (error) {
-    console.error('Error adding inventory item:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to add inventory item',
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
   }
-});
+);
 
 // Update inventory item
-router.put('/items/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const {
-      product_code,
-      name,
-      description,
-      category_id,
-      selling_price,
-      purchase_price,
-      purchase_value,
-      quantity_in_stock,
-      unit_type,
-      availability,
-      image_url,
-      is_unlimited,
-      is_premium
-    } = req.body;
+router.put(
+  "/items/:id",
+  authenticateToken,
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const {
+        product_code,
+        name,
+        description,
+        category_id,
+        selling_price,
+        purchase_price,
+        purchase_value,
+        quantity_in_stock,
+        unit_type,
+        availability,
+        is_unlimited,
+        is_premium,
+      } = req.body;
 
-    // Sanitize numeric values
-    const sanitizedQuantity = quantity_in_stock === null || quantity_in_stock === undefined || quantity_in_stock === '' ? 0 : parseInt(quantity_in_stock);
-    const sanitizedPurchasePrice = purchase_price === null || purchase_price === undefined || purchase_price === '' ? null : parseFloat(purchase_price);
-    const sanitizedPurchaseValue = purchase_value === null || purchase_value === undefined || purchase_value === '' ? 0 : parseFloat(purchase_value);
+      const parsedIsUnlimited =
+        is_unlimited === "true" || is_unlimited === true ? 1 : 0;
+      const parsedIsPremium =
+        is_premium === "true" || is_premium === true ? 1 : 0;
 
-    await pool.execute(`
+      // get current item to check for existing image
+      const [currentItems] = (await pool.execute(
+        `
+      SELECT image_public_id FROM menu_items WHERE id = ?
+    `,
+        [id]
+      )) as [RowDataPacket[], any];
+
+      if (currentItems.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "Inventory item not found",
+        });
+      }
+
+      const currentItem = currentItems[0];
+      let image_url = null;
+      let image_public_id = currentItem.image_public_id;
+
+      // ff new image is uploaded
+      if (req.file) {
+        // delete old image if exists
+        if (currentItem.image_public_id) {
+          try {
+            await deleteFromCloudinary(currentItem.image_public_id);
+          } catch (deleteError) {
+            console.error("Error deleting old image:", deleteError);
+          }
+        }
+
+        // upload new image
+        try {
+          const uploadResult = await uploadToCloudinary(req.file.buffer);
+          image_url = uploadResult.secure_url;
+          image_public_id = uploadResult.public_id;
+        } catch (uploadError) {
+          console.error("Cloudinary upload error:", uploadError);
+          return res.status(500).json({
+            success: false,
+            message: "Failed to upload image",
+          });
+        }
+      }
+
+      // Sanitize numeric values
+      const sanitizedQuantity =
+        quantity_in_stock === null ||
+        quantity_in_stock === undefined ||
+        quantity_in_stock === ""
+          ? 0
+          : parseInt(quantity_in_stock);
+      const sanitizedPurchasePrice =
+        purchase_price === null ||
+        purchase_price === undefined ||
+        purchase_price === ""
+          ? null
+          : parseFloat(purchase_price);
+      const sanitizedPurchaseValue =
+        purchase_value === null ||
+        purchase_value === undefined ||
+        purchase_value === ""
+          ? 0
+          : parseFloat(purchase_value);
+
+      let updateQuery = `
       UPDATE menu_items SET
         product_code = ?, name = ?, description = ?, category_id = ?,
         selling_price = ?, purchase_price = ?, purchase_value = ?,
         quantity_in_stock = ?, unit_type = ?, availability = ?,
-        image_url = ?, is_unlimited = ?, is_premium = ?,
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `, [
-      product_code || null,
-      name || null,
-      description || null,
-      category_id ? parseInt(category_id) : null,
-      selling_price ? parseFloat(selling_price) : null,
-      sanitizedPurchasePrice,
-      sanitizedPurchaseValue,
-      sanitizedQuantity,
-      unit_type || null,
-      availability || null,
-      image_url || null,
-      Boolean(is_unlimited),
-      Boolean(is_premium),
-      parseInt(id)
-    ]);
+        is_unlimited = ?, is_premium = ?, updated_at = CURRENT_TIMESTAMP
+    `;
 
-    res.json({
-      success: true,
-      message: 'Inventory item updated successfully'
-    });
-  } catch (error) {
-    console.error('Error updating inventory item:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update inventory item',
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
+      const queryParams = [
+        product_code || null,
+        name || null,
+        description || null,
+        category_id ? parseInt(category_id) : null,
+        selling_price ? parseFloat(selling_price) : null,
+        sanitizedPurchasePrice,
+        sanitizedPurchaseValue,
+        sanitizedQuantity,
+        unit_type || null,
+        availability || null,
+        parsedIsUnlimited,
+        parsedIsPremium,
+      ];
+
+      // if image was uploaded include image fields in update
+      if (req.file) {
+        updateQuery += `, image_url = ?, image_public_id = ?`;
+        queryParams.push(image_url, image_public_id);
+      }
+
+      updateQuery += ` WHERE id = ?`;
+      queryParams.push(parseInt(id));
+
+      await pool.execute(updateQuery, queryParams);
+
+      res.json({
+        success: true,
+        message: "Inventory item updated successfully",
+      });
+    } catch (error) {
+      console.error("Error updating inventory item:", error);
+      res.status(500).json({
+        success: false,
+        message: "Failed to update inventory item",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
   }
-});
+);
 
 // Delete inventory item
-router.delete('/items/:id', authenticateToken, async (req, res) => {
+router.delete("/items/:id", authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
 
-    await pool.execute('DELETE FROM menu_items WHERE id = ?', [id]);
+    // get item to check for image
+    const [currentItems] = await pool.execute<RowDataPacket[]>(
+      `
+      SELECT image_public_id FROM menu_items WHERE id = ?
+    `,
+      [id]
+    );
+
+    if (currentItems.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Inventory item not found",
+      });
+    }
+
+    const currentItem = currentItems[0];
+    // delete image if exists
+    if (currentItem.image_public_id) {
+      try {
+        await deleteFromCloudinary(currentItem.image_public_id);
+      } catch (deleteError) {
+        console.error("Error deleting image from Cloudinary:", deleteError);
+      }
+    }
+
+    await pool.execute("DELETE FROM menu_items WHERE id = ?", [id]);
 
     res.json({
       success: true,
-      message: 'Inventory item deleted successfully'
+      message: "Inventory item deleted successfully",
     });
   } catch (error) {
-    console.error('Error deleting inventory item:', error);
+    console.error("Error deleting inventory item:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to delete inventory item'
+      message: "Failed to delete inventory item",
     });
   }
 });
