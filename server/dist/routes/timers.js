@@ -8,18 +8,26 @@ const auth_1 = require("../middleware/auth");
 const database_1 = require("../config/database");
 const router = express_1.default.Router();
 // Get all active customer timers
-router.get('/', auth_1.authenticateToken, async (req, res) => {
+router.get("/", auth_1.authenticateToken, async (req, res) => {
     try {
-        const { page = 1, limit = 20, is_active } = req.query;
+        const { page = 1, limit = 9, is_active } = req.query;
         const offset = (Number(page) - 1) * Number(limit);
-        let whereConditions = ['1=1'];
+        let whereConditions = ["1=1"];
         let queryParams = [];
         // Filter by active status
         if (is_active !== undefined) {
-            whereConditions.push('ct.is_active = ?');
-            queryParams.push(is_active === 'true');
+            whereConditions.push("ct.is_active = ?");
+            queryParams.push(is_active === "true" || is_active === "1" ? 1 : 0);
         }
-        const whereClause = whereConditions.join(' AND ');
+        const whereClause = whereConditions.join(" AND ");
+        console.log("WHERE:", whereClause);
+        console.log("Params:", queryParams);
+        // Get total count for pagination
+        const countQuery = `
+      SELECT COUNT(*) as total
+      FROM customer_timers ct
+      WHERE ${whereClause}
+    `;
         // Get customer timers with table details
         const timersQuery = `
       SELECT 
@@ -27,8 +35,8 @@ router.get('/', auth_1.authenticateToken, async (req, res) => {
         ct.customer_name,
         ct.table_id,
         ct.order_id,
-        ct.start_time,
-        ct.end_time,
+        CONVERT_TZ(ct.start_time, '+00:00', '+08:00') as start_time,
+        CONVERT_TZ(ct.end_time, '+00:00', '+08:00') as end_time,
         ct.elapsed_seconds,
         ct.is_active,
         rt.table_number,
@@ -45,20 +53,14 @@ router.get('/', auth_1.authenticateToken, async (req, res) => {
       LEFT JOIN restaurant_tables rt ON ct.table_id = rt.id
       LEFT JOIN orders o ON ct.order_id = o.id
       WHERE ${whereClause}
-      ORDER BY ct.start_time DESC
-      
-    `;
-        queryParams.push(Number(limit), offset);
-        const timers = await (0, database_1.executeQuery)(timersQuery, queryParams);
-        // Get total count for pagination
-        const countQuery = `
-      SELECT COUNT(*) as total
-      FROM customer_timers ct
-      WHERE ${whereClause}
+      ORDER BY ct.is_active DESC, ct.start_time DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
-        const countParams = queryParams.slice(0, -2); // Remove limit and offset
-        const [{ total }] = await (0, database_1.executeQuery)(countQuery, countParams);
+        queryParams.push(Number(limit), offset);
+        console.log("Params:", queryParams);
+        const timers = await (0, database_1.executeQuery)(timersQuery, queryParams);
+        console.log("Timers fetched: ", timers.length);
+        const [{ total }] = await (0, database_1.executeQuery)(countQuery, queryParams);
         // Get statistics
         const statsQuery = `
       SELECT 
@@ -77,29 +79,29 @@ router.get('/', auth_1.authenticateToken, async (req, res) => {
                     currentPage: Number(page),
                     totalPages: Math.ceil(total / Number(limit)),
                     totalItems: total,
-                    itemsPerPage: Number(limit)
+                    itemsPerPage: Number(limit),
                 },
-                stats
-            }
+                stats,
+            },
         });
     }
     catch (error) {
-        console.error('Error fetching customer timers:', error);
+        console.error("Error fetching customer timers:", error);
         res.status(500).json({
             success: false,
-            message: 'Failed to fetch customer timers',
-            error: error instanceof Error ? error.message : 'Unknown error'
+            message: "Failed to fetch customer timers",
+            error: error instanceof Error ? error.message : "Unknown error",
         });
     }
 });
 // Create new customer timer
-router.post('/', auth_1.authenticateToken, async (req, res) => {
+router.post("/", auth_1.authenticateToken, async (req, res) => {
     try {
         const { customer_name, table_id, order_id } = req.body;
         if (!customer_name || !table_id) {
             return res.status(400).json({
                 success: false,
-                message: 'Customer name and table ID are required'
+                message: "Customer name and table ID are required",
             });
         }
         // Check if table already has an active timer
@@ -111,7 +113,7 @@ router.post('/', auth_1.authenticateToken, async (req, res) => {
         if (existingTimer.length > 0) {
             return res.status(400).json({
                 success: false,
-                message: 'Table already has an active timer'
+                message: "Table already has an active timer",
             });
         }
         // Create new timer
@@ -119,26 +121,30 @@ router.post('/', auth_1.authenticateToken, async (req, res) => {
       INSERT INTO customer_timers (customer_name, table_id, order_id, start_time, elapsed_seconds, is_active)
       VALUES (?, ?, ?, NOW(), 0, 1)
     `;
-        const result = await (0, database_1.executeQuery)(insertQuery, [customer_name, table_id, order_id ?? null]);
+        const result = await (0, database_1.executeQuery)(insertQuery, [
+            customer_name,
+            table_id,
+            order_id ?? null,
+        ]);
         // Update table status to occupied
         await (0, database_1.executeQuery)('UPDATE restaurant_tables SET status = "occupied" WHERE id = ?', [table_id]);
         res.json({
             success: true,
-            message: 'Customer timer created successfully',
-            data: { id: result.insertId }
+            message: "Customer timer created successfully",
+            data: { id: result.insertId },
         });
     }
     catch (error) {
-        console.error('Error creating customer timer:', error);
+        console.error("Error creating customer timer:", error);
         res.status(500).json({
             success: false,
-            message: 'Failed to create customer timer',
-            error: error instanceof Error ? error.message : 'Unknown error'
+            message: "Failed to create customer timer",
+            error: error instanceof Error ? error.message : "Unknown error",
         });
     }
 });
 // Update timer (stop/end timer)
-router.put('/:id/stop', auth_1.authenticateToken, async (req, res) => {
+router.put("/:id/stop", auth_1.authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
         // Get current timer
@@ -149,7 +155,7 @@ router.put('/:id/stop', auth_1.authenticateToken, async (req, res) => {
         if (!timer) {
             return res.status(404).json({
                 success: false,
-                message: 'Active timer not found'
+                message: "Active timer not found",
             });
         }
         // Calculate elapsed time and stop timer
@@ -165,20 +171,20 @@ router.put('/:id/stop', auth_1.authenticateToken, async (req, res) => {
         await (0, database_1.executeQuery)('UPDATE restaurant_tables SET status = "available" WHERE id = ?', [timer.table_id]);
         res.json({
             success: true,
-            message: 'Timer stopped successfully'
+            message: "Timer stopped successfully",
         });
     }
     catch (error) {
-        console.error('Error stopping timer:', error);
+        console.error("Error stopping timer:", error);
         res.status(500).json({
             success: false,
-            message: 'Failed to stop timer',
-            error: error instanceof Error ? error.message : 'Unknown error'
+            message: "Failed to stop timer",
+            error: error instanceof Error ? error.message : "Unknown error",
         });
     }
 });
 // Delete timer
-router.delete('/:id', auth_1.authenticateToken, async (req, res) => {
+router.delete("/:id", auth_1.authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
         // Get timer details before deletion
@@ -189,24 +195,24 @@ router.delete('/:id', auth_1.authenticateToken, async (req, res) => {
         if (!timer) {
             return res.status(404).json({
                 success: false,
-                message: 'Timer not found'
+                message: "Timer not found",
             });
         }
         // Delete timer
-        await (0, database_1.executeQuery)('DELETE FROM customer_timers WHERE id = ?', [id]);
+        await (0, database_1.executeQuery)("DELETE FROM customer_timers WHERE id = ?", [id]);
         // Update table status to available
         await (0, database_1.executeQuery)('UPDATE restaurant_tables SET status = "available" WHERE id = ?', [timer.table_id]);
         res.json({
             success: true,
-            message: 'Timer deleted successfully'
+            message: "Timer deleted successfully",
         });
     }
     catch (error) {
-        console.error('Error deleting timer:', error);
+        console.error("Error deleting timer:", error);
         res.status(500).json({
             success: false,
-            message: 'Failed to delete timer',
-            error: error instanceof Error ? error.message : 'Unknown error'
+            message: "Failed to delete timer",
+            error: error instanceof Error ? error.message : "Unknown error",
         });
     }
 });

@@ -110,6 +110,8 @@ app.use('*', (req, res) => {
         message: 'Route not found'
     });
 });
+// image
+app.use("/uploads", express_1.default.static(path_1.default.join(__dirname, "uploads")));
 // Use environment PORT if set, fallback to 5000 for local testing
 const PORT = process.env.PORT || 5000;
 // Initialize database and start server
