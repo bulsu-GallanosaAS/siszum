@@ -783,6 +783,7 @@ const Customers: React.FC = () => {
       {/* Customers Table */}
       {viewMode === "customers" && (
         <div className="table-container">
+          <div className="responsive-table-wrapper">
           <table className="customers-table">
             <thead>
               <tr>
@@ -850,6 +851,7 @@ const Customers: React.FC = () => {
               ))}
             </tbody>
           </table>
+          </div>
 
           {customers.length === 0 && (
             <div className="empty-state">
@@ -862,6 +864,7 @@ const Customers: React.FC = () => {
       {/* Customer Feedback Table */}
       {viewMode === "feedback" && (
         <div className="table-container">
+          <div className="responsive-table-wrapper">
           <table className="feedback-table">
             <thead>
               <tr>
@@ -955,12 +958,14 @@ const Customers: React.FC = () => {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
       {/* Customer Feedback Table */}
       {viewMode === "archive" && (
         <div className="table-container">
+          <div className="responsive-table-wrapper">
           <table className="feedback-table">
             <thead>
               <tr>
@@ -1047,6 +1052,7 @@ const Customers: React.FC = () => {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

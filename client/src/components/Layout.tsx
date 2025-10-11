@@ -14,7 +14,8 @@ import {
   User,
   LogOut,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Menu
 } from 'lucide-react';
 import './Layout.css';
 import logoSiszum from '../images/logo.png';
@@ -28,6 +29,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -40,6 +42,28 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Close sidebar on route change (mobile)
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [location.pathname]);
+
+  // Close sidebar on ESC and lock body scroll when open
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsSidebarOpen(false);
+    };
+    if (isSidebarOpen) {
+      document.addEventListener('keydown', onKeyDown);
+      // lock scroll
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.removeEventListener('keydown', onKeyDown);
+        document.body.style.overflow = prev;
+      };
+    }
+  }, [isSidebarOpen]);
 
   const handleLogout = () => {
     logout();
@@ -60,8 +84,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   return (
     <div className="layout">
+      {/* Sidebar overlay for mobile */}
+      <div
+        className={`sidebar-overlay ${isSidebarOpen ? 'show' : ''}`}
+        onClick={() => setIsSidebarOpen(false)}
+        aria-hidden={!isSidebarOpen}
+      />
       {/* Sidebar */}
-      <aside className="sidebar">
+  <aside id="sidebar" className={`sidebar ${isSidebarOpen ? 'open' : ''}`} aria-label="Main navigation">
         <div className="sidebar-header">
           <img src={logoSiszum} alt="SISZUM Gyupsal Logo" className="sidebar-logo" style={{ width: '154px', height: '154px', borderRadius: '8px' }} />
         </div>
@@ -94,7 +124,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         {/* Header */}
         <header className="header">
           <div className="header-left">
-            {/* Search removed */}
+            {/* Mobile menu toggle */}
+            <button
+              className="menu-toggle"
+              aria-label={isSidebarOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={isSidebarOpen}
+              aria-controls="sidebar"
+              onClick={() => setIsSidebarOpen((v) => !v)}
+            >
+              <Menu size={20} />
+            </button>
           </div>
 
           <div className="header-right">

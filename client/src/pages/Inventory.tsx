@@ -606,6 +606,7 @@ const Inventory: React.FC = () => {
         </div>
 
         <div className="products-table-container">
+          <div className="responsive-table-wrapper">
           <table className="products-table">
             <thead>
               <tr>
@@ -719,6 +720,7 @@ const Inventory: React.FC = () => {
               })}
             </tbody>
           </table>
+          </div>
 
           {filteredItems.length === 0 && (
             <div className="empty-state">

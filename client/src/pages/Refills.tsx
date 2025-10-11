@@ -177,6 +177,7 @@ const Refills: React.FC = () => {
 
       {/* Refills Table */}
       <div className="refills-table-section">
+        <div className="responsive-table-wrapper">
         <table className="refills-table">
           <thead>
             <tr>
@@ -251,7 +252,8 @@ const Refills: React.FC = () => {
               </tr>
             ))}
           </tbody>
-        </table>
+  </table>
+  </div>
 
         {refills.length === 0 && (
           <div className="no-data">

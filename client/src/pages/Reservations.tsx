@@ -369,7 +369,7 @@ const Reservations: React.FC = () => {
       <div className="table-header">
         <h3>Total Reservations: {filteredReservations.length}</h3>
       </div>
-      <div className="table-wrapper">
+      <div className="table-wrapper responsive-table-wrapper">
         <table className="reservations-table">
           <thead>
             <tr>

@@ -278,6 +278,7 @@ const Dashboard: React.FC = () => {
           <div className="table-content">
             {pendingOrders.length > 0 ? (
               <>
+                <div className="responsive-table-wrapper">
                 <table>
                   <thead>
                     <tr>
@@ -305,6 +306,7 @@ const Dashboard: React.FC = () => {
                     ))}
                   </tbody>
                 </table>
+                </div>
                 {pendingOrders.length > 5 && (
                   <button
                     className="see-more-btn"
@@ -330,6 +332,7 @@ const Dashboard: React.FC = () => {
           <div className="table-content">
             {recentOrders.length > 0 ? (
               <>
+                <div className="responsive-table-wrapper">
                 <table>
                   <thead>
                     <tr>
@@ -359,6 +362,7 @@ const Dashboard: React.FC = () => {
                     ))}
                   </tbody>
                 </table>
+                </div>
                 {recentOrders.length > 5 && (
                   <button
                     className="see-more-btn"

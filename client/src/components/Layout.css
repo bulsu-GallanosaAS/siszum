@@ -14,6 +14,9 @@
   position: fixed;
   height: 100vh;
   z-index: 100;
+  left: 0;
+  top: 0;
+  transition: transform 0.3s ease;
 }
 
 .sidebar-header {
@@ -248,6 +251,27 @@
   flex-shrink: 0;
 }
 
+.menu-toggle {
+  display: none;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #111827;
+  border-radius: 8px;
+  padding: 8px;
+  line-height: 0;
+}
+
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  z-index: 90;
+}
+.sidebar-overlay.show { opacity: 1; pointer-events: auto; }
+
 .header-right {
   display: flex;
   align-items: center;
@@ -332,63 +356,37 @@
 }
 
 @media (max-width: 768px) {
+  /* Off-canvas sidebar behavior on tablet/mobile */
   .sidebar {
-    width: 70px;
+    transform: translateX(-100%);
+    width: 260px;
   }
-  
-  .main-content {
-    margin-left: 70px;
+  .sidebar.open {
+    transform: translateX(0);
   }
-  
-  .logo-text,
-  .nav-item span {
-    display: none;
-  }
-  
-  .nav-item {
-    justify-content: center;
-    padding: 12px;
-  }
-  
-  .search-container {
-    display: none;
-  }
-  
-  .profile-info-small {
-    display: none;
-  }
-  
-  .dropdown-arrow {
-    display: none;
-  }
-  
-  .profile-trigger {
-    justify-content: center;
-    margin: 0 8px;
-  }
-  
-  .profile-dropdown {
-    left: 8px;
-    right: 8px;
-    top: 100%;
-    bottom: auto;
-  }
-  
-  .country-selector span {
-    display: none;
-  }
-}
-
-@media (max-width: 640px) {
-  .sidebar {
-    width: 0;
-    overflow: hidden;
-  }
-  
   .main-content {
     margin-left: 0;
   }
-  
+  .menu-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .logo-text,
+  .nav-item span {
+    display: inline;
+  }
+  .nav-item {
+    justify-content: flex-start;
+    padding: 12px 20px;
+  }
+  .search-container { display: none; }
+  .profile-info-small { display: none; }
+  .dropdown-arrow { display: none; }
+  .profile-trigger { margin: 0 8px; }
+}
+
+@media (max-width: 640px) {
   .header {
     padding: 0 16px;
   }

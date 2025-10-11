@@ -348,6 +348,7 @@ const Orders: React.FC = () => {
 
       {}
       <div className="table-container">
+        <div className="responsive-table-wrapper">
         <table className="orders-table">
           <thead>
             <tr>
@@ -406,7 +407,8 @@ const Orders: React.FC = () => {
               </tr>
             ))}
           </tbody>
-        </table>
+  </table>
+  </div>
 
         {orders.length === 0 && (
           <div className="empty-state">

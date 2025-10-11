@@ -321,6 +321,7 @@ const Transactions: React.FC = () => {
         </div>
 
         <div className="table-container">
+          <div className="responsive-table-wrapper">
           <table className="transactions-table">
             <thead>
               <tr>
@@ -383,6 +384,7 @@ const Transactions: React.FC = () => {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
 
         {}
