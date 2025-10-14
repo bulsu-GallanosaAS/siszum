@@ -548,12 +548,7 @@ const Orders: React.FC = () => {
                   >
                     💵 Cash
                   </button>
-                  <button 
-                    className={`payment-method-btn card ${selectedPaymentMethod === 'card' ? 'selected' : ''}`}
-                    onClick={() => handlePaymentMethod('card')}
-                  >
-                    💳 Card
-                  </button>
+                  
                   <button 
                     className={`payment-method-btn gcash ${selectedPaymentMethod === 'gcash' ? 'selected' : ''}`}
                     onClick={() => handlePaymentMethod('gcash')}
