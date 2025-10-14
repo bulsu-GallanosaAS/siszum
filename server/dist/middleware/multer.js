@@ -15,11 +15,12 @@ const fileFilter = (req, file, cb) => {
         cb(new Error("Only image files are allowed!"));
     }
 };
+const MAX_FILE_SIZE = Number(process.env.MAX_FILE_SIZE || 5 * 1024 * 1024); // default 5MB
 const upload = (0, multer_1.default)({
     storage: storage,
     fileFilter: fileFilter,
     limits: {
-        fileSize: 5 * 1024 * 1024, // 5MB limit
+        fileSize: MAX_FILE_SIZE,
     },
 });
 exports.default = upload;

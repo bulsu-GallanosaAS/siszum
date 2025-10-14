@@ -7,6 +7,8 @@ const express_1 = __importDefault(require("express"));
 const express_validator_1 = require("express-validator");
 const database_1 = require("../config/database");
 const auth_1 = require("../middleware/auth");
+const multer_1 = __importDefault(require("../middleware/multer"));
+const cloudinaryUpload_1 = require("../utils/cloudinaryUpload");
 const router = express_1.default.Router();
 // Get all reservations
 router.get('/', auth_1.authenticateToken, async (req, res) => {
@@ -65,6 +67,55 @@ router.get('/:id', auth_1.authenticateToken, async (req, res) => {
             success: false,
             message: 'Failed to fetch reservation'
         });
+    }
+});
+// Upload reservation payment proof
+router.post('/:id/proof', auth_1.authenticateToken, multer_1.default.single('proof'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        // Ensure file exists
+        if (!req.file || !req.file.buffer) {
+            return res.status(400).json({ success: false, message: 'No file uploaded' });
+        }
+        // Validate mimetype and size (multer already enforces, double-check for clarity)
+        const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+        if (!allowed.includes(req.file.mimetype)) {
+            return res.status(400).json({ success: false, message: 'Invalid file type. Allowed: JPG, PNG, WEBP' });
+        }
+        // Check reservation exists
+        const rows = await (0, database_1.executeQuery)('SELECT id, payment_proof_public_id FROM reservations WHERE id = ?', [id]);
+        if (!rows || rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Reservation not found' });
+        }
+        const existingPublicId = rows[0].payment_proof_public_id;
+        // Delete previous proof if exists
+        if (existingPublicId) {
+            try {
+                await (0, cloudinaryUpload_1.deleteFromCloudinary)(existingPublicId);
+            }
+            catch (e) { /* non-fatal */ }
+        }
+        // Upload new image
+        const uploadResult = await (0, cloudinaryUpload_1.uploadToCloudinary)(req.file.buffer, 'reservations/proofs');
+        // Update reservation with proof details
+        await (0, database_1.executeQuery)(`UPDATE reservations 
+         SET payment_proof_url = ?, payment_proof_public_id = ?, payment_uploaded_at = NOW(), payment_status = 'pending_review', updated_at = NOW()
+         WHERE id = ?`, [uploadResult.secure_url, uploadResult.public_id, id]);
+        // Return updated reservation
+        const [reservation] = await (0, database_1.executeQuery)(`SELECT r.*, rt.table_number FROM reservations r LEFT JOIN restaurant_tables rt ON r.table_id = rt.id WHERE r.id = ?`, [id]);
+        const response = {
+            success: true,
+            message: 'Payment proof uploaded successfully',
+            data: reservation
+        };
+        return res.status(200).json(response);
+    }
+    catch (error) {
+        console.error('Error uploading payment proof:', error);
+        if (error?.message?.includes('File too large')) {
+            return res.status(400).json({ success: false, message: 'File too large. Max 5MB' });
+        }
+        return res.status(500).json({ success: false, message: 'Failed to upload payment proof' });
     }
 });
 // Create new reservation

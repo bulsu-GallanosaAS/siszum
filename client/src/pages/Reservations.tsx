@@ -17,10 +17,16 @@ interface Reservation {
   reservation_time: string;
   duration_hours: number;
   payment_amount: number | string;
-  payment_status: 'pending' | 'paid' | 'cancelled';
+  payment_status: 'unpaid' | 'pending_review' | 'approved' | 'rejected' | 'pending' | 'paid' | 'cancelled';
   status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
   notes?: string;
   created_at: string;
+  payment_proof_url?: string | null;
+  payment_proof_public_id?: string | null;
+  payment_uploaded_at?: string | null;
+  verified_by?: number | null;
+  verified_at?: string | null;
+  rejection_reason?: string | null;
 }
 
 const Reservations: React.FC = () => {
@@ -35,6 +41,7 @@ const Reservations: React.FC = () => {
   const [showView, setShowView] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
+  const [showProof, setShowProof] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Reservation>>({});
   const [form, setForm] = useState({
     customer_name: '',
@@ -108,6 +115,11 @@ const Reservations: React.FC = () => {
   const handleView = (reservation: Reservation) => {
     setSelectedReservation(reservation);
     setShowView(true);
+  };
+
+  const handleViewProof = (reservation: Reservation) => {
+    setSelectedReservation(reservation);
+    setShowProof(true);
   };
 
 
@@ -648,6 +660,21 @@ const Reservations: React.FC = () => {
                     {selectedReservation.status}
                   </span>
                 </div>
+                <div className="detail-item-large">
+                  <span className="detail-label">Payment Proof</span>
+                  <span className="detail-value">
+                    {selectedReservation.payment_proof_url ? (
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => handleViewProof(selectedReservation)}
+                      >
+                        View Proof
+                      </button>
+                    ) : (
+                      'No proof uploaded'
+                    )}
+                  </span>
+                </div>
               </div>
               {selectedReservation.notes && (
                 <div className="form-group">
@@ -660,6 +687,35 @@ const Reservations: React.FC = () => {
             </div>
             <div className="modal-actions">
               <button className="btn btn-secondary" onClick={() => setShowView(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showProof && selectedReservation && (
+        <div className="modal-overlay" onClick={() => setShowProof(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Payment Proof</h3>
+            </div>
+            <div className="modal-content" style={{ display: 'flex', justifyContent: 'center' }}>
+              {selectedReservation.payment_proof_url ? (
+                <img
+                  src={selectedReservation.payment_proof_url}
+                  alt="Payment Proof"
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '70vh',
+                    borderRadius: 8,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                  }}
+                />
+              ) : (
+                <div style={{ padding: 16, color: '#6b7280' }}>No proof uploaded</div>
+              )}
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => setShowProof(false)}>Close</button>
             </div>
           </div>
         </div>

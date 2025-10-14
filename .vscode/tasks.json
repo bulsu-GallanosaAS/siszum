@@ -22,6 +22,16 @@
 			"options": {
 				"cwd": "${workspaceFolder}/server"
 			}
+		},
+		{
+			"label": "Build server (tsc)",
+			"type": "shell",
+			"command": "npm run build",
+			"args": [],
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "build"
 		}
 	]
 }

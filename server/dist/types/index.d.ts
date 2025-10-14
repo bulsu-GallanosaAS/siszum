@@ -94,9 +94,15 @@ export interface Reservation {
     reservation_time: string;
     duration_hours: number;
     payment_amount: number;
-    payment_status: 'pending' | 'paid' | 'cancelled';
+    payment_status: 'unpaid' | 'pending_review' | 'approved' | 'rejected' | 'pending' | 'paid' | 'cancelled';
     status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
     notes?: string;
+    payment_proof_url?: string | null;
+    payment_proof_public_id?: string | null;
+    payment_uploaded_at?: Date | null;
+    verified_by?: number | null;
+    verified_at?: Date | null;
+    rejection_reason?: string | null;
     created_at: Date;
     updated_at: Date;
 }

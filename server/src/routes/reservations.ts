@@ -3,6 +3,8 @@ import { body, validationResult } from 'express-validator';
 import { executeQuery } from '../config/database';
 import { authenticateToken } from '../middleware/auth';
 import { AuthenticatedRequest, ApiResponse } from '../types';
+import upload from '../middleware/multer';
+import { uploadToCloudinary, deleteFromCloudinary } from '../utils/cloudinaryUpload';
 
 const router = express.Router();
 
@@ -20,10 +22,16 @@ interface Reservation {
   reservation_time: string;
   duration_hours: number;
   payment_amount: number;
-  payment_status: 'pending' | 'paid' | 'cancelled';
+  payment_status: 'unpaid' | 'pending_review' | 'approved' | 'rejected' | 'pending' | 'paid' | 'cancelled';
   status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
   notes?: string;
   created_at: string;
+  payment_proof_url?: string | null;
+  payment_proof_public_id?: string | null;
+  payment_uploaded_at?: string | null;
+  verified_by?: number | null;
+  verified_at?: string | null;
+  rejection_reason?: string | null;
 }
 
 // Get all reservations
@@ -90,6 +98,73 @@ router.get('/:id', authenticateToken, async (req: AuthenticatedRequest, res: exp
     });
   }
 });
+
+// Upload reservation payment proof
+router.post(
+  '/:id/proof',
+  authenticateToken,
+  upload.single('proof'),
+  async (req: AuthenticatedRequest, res: express.Response) => {
+    try {
+      const { id } = req.params;
+
+      // Ensure file exists
+      if (!req.file || !req.file.buffer) {
+        return res.status(400).json({ success: false, message: 'No file uploaded' });
+      }
+
+      // Validate mimetype and size (multer already enforces, double-check for clarity)
+      const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!allowed.includes(req.file.mimetype)) {
+        return res.status(400).json({ success: false, message: 'Invalid file type. Allowed: JPG, PNG, WEBP' });
+      }
+
+      // Check reservation exists
+      const rows = await executeQuery('SELECT id, payment_proof_public_id FROM reservations WHERE id = ?', [id]) as any[];
+      if (!rows || rows.length === 0) {
+        return res.status(404).json({ success: false, message: 'Reservation not found' });
+      }
+
+      const existingPublicId = rows[0].payment_proof_public_id as string | null;
+
+      // Delete previous proof if exists
+      if (existingPublicId) {
+        try { await deleteFromCloudinary(existingPublicId); } catch (e) { /* non-fatal */ }
+      }
+
+      // Upload new image
+      const uploadResult = await uploadToCloudinary(req.file.buffer, 'reservations/proofs');
+
+      // Update reservation with proof details
+      await executeQuery(
+        `UPDATE reservations 
+         SET payment_proof_url = ?, payment_proof_public_id = ?, payment_uploaded_at = NOW(), payment_status = 'pending_review', updated_at = NOW()
+         WHERE id = ?`,
+        [uploadResult.secure_url, uploadResult.public_id, id]
+      );
+
+      // Return updated reservation
+      const [reservation] = await executeQuery(
+        `SELECT r.*, rt.table_number FROM reservations r LEFT JOIN restaurant_tables rt ON r.table_id = rt.id WHERE r.id = ?`,
+        [id]
+      ) as Reservation[];
+
+      const response: ApiResponse<Reservation> = {
+        success: true,
+        message: 'Payment proof uploaded successfully',
+        data: reservation
+      };
+
+      return res.status(200).json(response);
+    } catch (error: any) {
+      console.error('Error uploading payment proof:', error);
+      if (error?.message?.includes('File too large')) {
+        return res.status(400).json({ success: false, message: 'File too large. Max 5MB' });
+      }
+      return res.status(500).json({ success: false, message: 'Failed to upload payment proof' });
+    }
+  }
+);
 
 // Create new reservation
 router.post('/', [
