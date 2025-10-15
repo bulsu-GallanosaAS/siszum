@@ -32,6 +32,24 @@
 				"$tsc"
 			],
 			"group": "build"
+		},
+		{
+			"label": "Build server (tsc)",
+			"type": "shell",
+			"command": "npm run build",
+			"group": "build"
+		},
+		{
+			"label": "Build server (tsc)",
+			"type": "shell",
+			"command": "npm run build",
+			"group": "build"
+		},
+		{
+			"label": "Build server (tsc)",
+			"type": "shell",
+			"command": "npm run build",
+			"group": "build"
 		}
 	]
 }

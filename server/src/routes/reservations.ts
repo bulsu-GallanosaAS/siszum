@@ -248,11 +248,47 @@ router.put('/:id/status', [
     }
 
     const { id } = req.params;
-    const { status } = req.body;
+    const { status } = req.body as { status: Reservation['status'] };
+
+    // Fetch current status and fee to determine transition behavior
+    const [current] = await executeQuery(
+      'SELECT status, COALESCE(reservation_fee_amount, 0) AS reservation_fee_amount FROM reservations WHERE id = ?',
+      [id]
+    ) as Array<{ status: Reservation['status']; reservation_fee_amount: number }>;    
+
+    if (!current) {
+      return res.status(404).json({ success: false, message: 'Reservation not found' });
+    }
+
+    // Check if the table has a confirmed_at column (schema may vary)
+    let hasConfirmedAt = false;
+    try {
+      const col = await executeQuery("SHOW COLUMNS FROM reservations LIKE 'confirmed_at'");
+      hasConfirmedAt = Array.isArray(col) && col.length > 0;
+    } catch (_) {
+      // ignore schema probe errors
+    }
+
+    // Build update pieces
+    const updates: string[] = ['status = ?', 'updated_at = NOW()'];
+    const params: any[] = [status];
+
+    // On transition to confirmed, apply a one-time ₱100 fee
+    if (status === 'confirmed' && current.status !== 'confirmed') {
+      // Only set if not previously set (idempotent)
+      if ((current.reservation_fee_amount || 0) <= 0) {
+        updates.push('reservation_fee_amount = 100');
+      }
+      if (hasConfirmedAt) {
+        updates.push('confirmed_at = NOW()');
+      }
+    }
+
+    params.push(id);
 
     await executeQuery(
-      'UPDATE reservations SET status = ?, updated_at = NOW() WHERE id = ?',
-      [status, id]
+      `UPDATE reservations SET ${updates.join(', ')} WHERE id = ?`,
+      params
     );
 
     const response: ApiResponse = {

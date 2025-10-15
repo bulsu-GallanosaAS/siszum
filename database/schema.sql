@@ -132,6 +132,8 @@ CREATE TABLE reservations (
     payment_amount DECIMAL(10,2) DEFAULT 0,
     payment_status ENUM('pending', 'paid', 'cancelled') DEFAULT 'pending',
     status ENUM('pending', 'confirmed', 'in_progress', 'completed', 'cancelled') DEFAULT 'pending',
+    reservation_fee_amount DECIMAL(10,2) DEFAULT 0,
+    confirmed_at TIMESTAMP NULL,
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

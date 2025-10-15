@@ -108,6 +108,8 @@ export interface Reservation {
   payment_amount: number;
   payment_status: 'unpaid' | 'pending_review' | 'approved' | 'rejected' | 'pending' | 'paid' | 'cancelled';
   status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
+  reservation_fee_amount?: number; // ₱100 set upon confirmation
+  confirmed_at?: Date | null; // when status became confirmed
   notes?: string;
   payment_proof_url?: string | null;
   payment_proof_public_id?: string | null;

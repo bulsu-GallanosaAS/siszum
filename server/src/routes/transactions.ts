@@ -111,14 +111,29 @@ router.get("/", authenticateToken, async (req, res) => {
     `;
     const [stats] = await executeQuery(statsQuery);
 
+    // Detect if confirmed_at column exists to avoid SQL errors on older schemas
+    let confirmedAtExists = true;
+    try {
+      const cols = await executeQuery("SHOW COLUMNS FROM reservations LIKE 'confirmed_at'");
+      confirmedAtExists = Array.isArray(cols) && cols.length > 0;
+    } catch (_) {
+      confirmedAtExists = false;
+    }
+
+    // If confirmed_at is absent, use updated_at for confirmed rows as a better approximation of confirmation time
+    const todaySumExpr = confirmedAtExists
+      ? "COALESCE(SUM(CASE WHEN DATE(confirmed_at) = CURDATE() THEN reservation_fee_amount ELSE 0 END), 0)"
+      : "COALESCE(SUM(CASE WHEN status = 'confirmed' AND DATE(updated_at) = CURDATE() THEN reservation_fee_amount ELSE 0 END), 0)";
+
     const [reservationStats] = await executeQuery(`
       SELECT 
-        COUNT(*) * 100 AS total_reservations_fee,
-        SUM(CASE WHEN DATE(created_at) = CURDATE() THEN 100 ELSE 0 END) AS today_reservations_fee
+        COALESCE(SUM(reservation_fee_amount), 0) AS total_reservations_fee,
+        ${todaySumExpr} AS today_reservations_fee
       FROM reservations
     `);
 
-    stats.total_reservations_fee = reservationStats.total_reservations_fee;
+  stats.total_reservations_fee = reservationStats.total_reservations_fee;
+  stats.today_reservations_fee = reservationStats.today_reservations_fee;
 
     res.json({
       success: true,
