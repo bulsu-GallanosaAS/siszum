@@ -52,7 +52,7 @@ const Reservations: React.FC = () => {
     reservation_time: '18:00'
   });
   const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 5;
+  const [pageSize, setPageSize] = useState<number>(10);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -186,10 +186,23 @@ const Reservations: React.FC = () => {
     return `₱${numAmount.toFixed(2)}`;
   };
 
-  const filteredReservations = reservations.filter(reservation => {
+  // newest-first: sort by created_at desc as primary, fallback to date/time and id
+  const sortedReservations = [...reservations].sort((a, b) => {
+    const aCreated = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const bCreated = b.created_at ? new Date(b.created_at).getTime() : 0;
+    if (aCreated !== bCreated) return bCreated - aCreated;
+    const aDT = new Date(`${a.reservation_date}T${a.reservation_time}`).getTime();
+    const bDT = new Date(`${b.reservation_date}T${b.reservation_time}`).getTime();
+    if (aDT !== bDT) return bDT - aDT;
+    return (b.id || 0) - (a.id || 0);
+  });
+
+  const filteredReservations = sortedReservations.filter(reservation => {
     const matchesSearch = reservation.customer_name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
                          reservation.phone.includes(debouncedSearch) ||
-                         reservation.reservation_code.toLowerCase().includes(debouncedSearch.toLowerCase());
+                         reservation.reservation_code.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+                         reservation.id.toString().includes(debouncedSearch) ||
+                         (`ReservationID:${reservation.id}`).toLowerCase().includes(debouncedSearch.toLowerCase());
     const matchesStatus = statusFilter === 'all' || reservation.status === statusFilter;
 
     const matchesDate = viewMode === 'table' ? true : true;
@@ -197,7 +210,10 @@ const Reservations: React.FC = () => {
     return matchesSearch && matchesStatus && matchesDate;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filteredReservations.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredReservations.length / pageSize));
+
+  const startIndex = filteredReservations.length > 0 ? (currentPage - 1) * pageSize + 1 : 0;
+  const endIndex = filteredReservations.length > 0 ? Math.min(currentPage * pageSize, filteredReservations.length) : 0;
 
   useEffect(() => {
     // ensure current page is within bounds when the filtered list changes
@@ -214,10 +230,16 @@ const Reservations: React.FC = () => {
     setCurrentPage(1);
   }, [viewMode]);
 
+  useEffect(() => {
+    // reset to first page when page size changes
+    setCurrentPage(1);
+  }, [pageSize]);
+
   const renderGridView = () => (
-    <div className="reservations-grid">
-      {filteredReservations.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((reservation) => (
-        <div key={reservation.id} className="reservation-card">
+    <>
+      <div className="reservations-grid">
+        {filteredReservations.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((reservation) => (
+          <div key={reservation.id} className="reservation-card">
           <div className="reservation-header">
             <div className="customer-avatar">
               <span>{reservation.customer_name.charAt(0)}</span>
@@ -255,30 +277,47 @@ const Reservations: React.FC = () => {
               </div>
             )}
           </div>
-        </div>
-      ))}
-      {filteredReservations.length > PAGE_SIZE && (
-        <div className="pagination-controls" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 0' }}>
-          <button
-            className="btn btn-secondary"
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
-          >
-            Previous
-          </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, color: '#6b7280' }}>
-            <span>Page {currentPage} of {totalPages}</span>
           </div>
-          <button
-            className="btn btn-primary"
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages}
-          >
-            Next
-          </button>
+        ))}
+      </div>
+      {filteredReservations.length > pageSize && (
+        <div className="pagination-bar pagination-controls" style={{ padding: '12px 0' }}>
+          <div className="pagination-left">
+            <span>Showing {startIndex} to {endIndex} of {filteredReservations.length} results</span>
+            <select
+              className="page-size-select"
+              value={pageSize}
+              onChange={(e) => setPageSize(parseInt(e.target.value, 10))}
+            >
+              <option value={5}>5 per page</option>
+              <option value={10}>10 per page</option>
+              <option value={15}>15 per page</option>
+              <option value={20}>20 per page</option>
+              <option value={50}>50 per page</option>
+            </select>
+          </div>
+          <div className="pagination-right">
+            <button
+              className="btn btn-secondary"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, color: '#6b7280' }}>
+              <span>Page {currentPage} of {totalPages}</span>
+            </div>
+            <button
+              className="btn btn-primary"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
-    </div>
+    </>
   );
 
   const renderCalendarView = () => {
@@ -377,86 +416,104 @@ const Reservations: React.FC = () => {
   };
 
   const renderTableView = () => (
-    <div className="reservations-table-container">
-      <div className="table-header">
-        <h3>Total Reservations: {filteredReservations.length}</h3>
-      </div>
-      <div className="table-wrapper responsive-table-wrapper">
-        <table className="reservations-table">
-          <thead>
-            <tr>
-              <th>Reservation ID</th>
-              <th>Customer Name</th>
-              <th>Phone Number</th>
-              <th>Email</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredReservations.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((reservation) => (
-              <tr key={reservation.id}>
-                <td>{reservation.reservation_code}</td>
-                <td>{reservation.customer_name}</td>
-                <td>{reservation.phone}</td>
-                <td>{reservation.email || '-'}</td>
-                <td>
-                  <span className={`status-badge ${reservation.status}`}>
-                    {reservation.status}
-                  </span>
-                </td>
-                <td>
-                  <div className="action-buttons">
-                    <button 
-                      className="action-btn view" 
-                      title="View"
-                      onClick={() => handleView(reservation)}
-                    >
-                      <Eye size={14} />
-                    </button>
-                    
-                    <button 
-                      className="action-btn delete" 
-                      title="Delete"
-                      onClick={() => handleDelete(reservation.id)}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </td>
+    <>
+      <div className="reservations-table-container">
+        <div className="table-header">
+          <h3>Total Reservations: {filteredReservations.length}</h3>
+        </div>
+        <div className="table-wrapper responsive-table-wrapper">
+          <table className="reservations-table">
+            <thead>
+              <tr>
+                <th>Reservation ID</th>
+                <th>Customer Name</th>
+                <th>Phone Number</th>
+                <th>Email</th>
+                <th>Status</th>
+                <th>Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {filteredReservations.length > PAGE_SIZE && (
-        <div className="pagination-controls" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 24px' }}>
-          <button
-            className="btn btn-secondary"
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
-          >
-            Previous
-          </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, color: '#6b7280' }}>
-            <span>Page {currentPage} of {totalPages}</span>
+            </thead>
+            <tbody>
+              {filteredReservations.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((reservation) => (
+                <tr key={reservation.id}>
+                  <td>{`RE${reservation.id}`}</td>
+                  <td>{reservation.customer_name}</td>
+                  <td>{reservation.phone}</td>
+                  <td>{reservation.email || '-'}</td>
+                  <td>
+                    <span className={`status-badge ${reservation.status}`}>
+                      {reservation.status}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="action-buttons">
+                      <button 
+                        className="action-btn view" 
+                        title="View"
+                        onClick={() => handleView(reservation)}
+                      >
+                        <Eye size={14} />
+                      </button>
+                      
+                      <button 
+                        className="action-btn delete" 
+                        title="Delete"
+                        onClick={() => handleDelete(reservation.id)}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {filteredReservations.length === 0 && (
+          <div className="empty-state">
+            <CalendarIcon size={48} />
+            <p>No reservations found</p>
           </div>
-          <button
-            className="btn btn-primary"
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages}
-          >
-            Next
-          </button>
+        )}
+      </div>
+      {filteredReservations.length > pageSize && (
+        <div className="pagination-bar pagination-controls" style={{ padding: '12px 24px' }}>
+          <div className="pagination-left">
+            <span>Showing {startIndex} to {endIndex} of {filteredReservations.length} results</span>
+            <select
+              className="page-size-select"
+              value={pageSize}
+              onChange={(e) => setPageSize(parseInt(e.target.value, 10))}
+            >
+              <option value={5}>5 per page</option>
+              <option value={10}>10 per page</option>
+              <option value={15}>15 per page</option>
+              <option value={20}>20 per page</option>
+              <option value={50}>50 per page</option>
+            </select>
+          </div>
+          <div className="pagination-right">
+            <button
+              className="btn btn-secondary"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, color: '#6b7280' }}>
+              <span>Page {currentPage} of {totalPages}</span>
+            </div>
+            <button
+              className="btn btn-primary"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
-      {filteredReservations.length === 0 && (
-        <div className="empty-state">
-          <CalendarIcon size={48} />
-          <p>No reservations found</p>
-        </div>
-      )}
-    </div>
+    </>
   );
 
   if (loading) {
@@ -494,7 +551,6 @@ const Reservations: React.FC = () => {
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
           </select>
-    {}
         </div>
       </div>
 

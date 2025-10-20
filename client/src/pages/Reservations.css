@@ -568,6 +568,8 @@
   text-transform: capitalize;
 }
 
+/* Reverted column-specific alignment and truncation to defaults */
+
 .status-badge.pending {
   background: #fef3c7;
   color: #92400e;
@@ -830,6 +832,34 @@
 .pagination-controls {
   background: #fff;
   border-top: 1px solid #e5e7eb;
+}
+
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pagination-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #6b7280;
+}
+
+.page-size-select {
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 14px;
+}
+
+.pagination-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .pagination-controls .btn {

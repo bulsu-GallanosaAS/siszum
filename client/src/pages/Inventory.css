@@ -131,6 +131,14 @@
   color: #1e293b;
 }
 
+/* Ensure stats text is left-aligned */
+.stat-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+}
+
 .stat-content p {
   margin: 0 0 4px 0;
   font-size: 14px;
@@ -215,6 +223,25 @@
   color: #6b7280;
   font-size: 14px;
 }
+
+/* Align price and actions columns */
+.products-table th.price,
+.products-table th.price,
+.products-table td.price {
+  text-align: right;
+  width: 110px;
+  white-space: nowrap;
+  padding-right: 12px;
+}
+
+.products-table th.actions,
+.products-table td.actions {
+  text-align: left;
+  width: auto;
+  padding-right: 24px;
+}
+
+
 
 .products-table tbody tr:hover {
   background: #f9fafb;
@@ -389,6 +416,8 @@
 .action-btn:hover {
   opacity: 0.8;
 }
+
+
 
 /* Table Pagination */
 .table-pagination {

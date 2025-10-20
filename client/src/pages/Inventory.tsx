@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Plus, Search, Edit, Trash2, Eye, AlertTriangle, ShoppingCart, DollarSign } from 'lucide-react';
+import { Package, Plus, Search, Edit, Trash2, Eye } from 'lucide-react';
 import { apiClient } from '../services/apiClient';
 import './Inventory.css';
 
@@ -44,22 +44,17 @@ const Inventory: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [availabilityFilter, setAvailabilityFilter] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [formData, setFormData] = useState({
-    product_code: '',
     name: '',
     description: '',
     category_id: '',
     selling_price: '',
-    purchase_price: '',
-    quantity_in_stock: '',
     unit_type: 'piece',
-    availability: 'available',
     is_unlimited: false,
     is_premium: false
   });
@@ -124,10 +119,6 @@ const Inventory: React.FC = () => {
         alert('Product name is required');
         return;
       }
-      if (!formData.product_code.trim()) {
-        alert('Product code is required');
-        return;
-      }
       if (!formData.category_id) {
         alert('Category is required');
         return;
@@ -139,15 +130,11 @@ const Inventory: React.FC = () => {
 
       const formDataToSend = new FormData();
           // Append all form data
-    formDataToSend.append('product_code', formData.product_code.trim());
     formDataToSend.append('name', formData.name.trim());
     formDataToSend.append('description', formData.description.trim() || '');
     formDataToSend.append('category_id', formData.category_id);
     formDataToSend.append('selling_price', formData.selling_price);
-    formDataToSend.append('purchase_price', formData.purchase_price || '');
-    formDataToSend.append('quantity_in_stock', formData.quantity_in_stock || '0');
     formDataToSend.append('unit_type', formData.unit_type);
-    formDataToSend.append('availability', formData.availability);
         // FIX: Apply the same boolean handling
     formDataToSend.append('is_unlimited', formData.is_unlimited ? 'true' : 'false');
     formDataToSend.append('is_premium', formData.is_premium ? 'true' : 'false');
@@ -194,15 +181,11 @@ const Inventory: React.FC = () => {
 
   const resetForm = () => {
     setFormData({
-      product_code: '',
       name: '',
       description: '',
       category_id: '',
       selling_price: '',
-      purchase_price: '',
-      quantity_in_stock: '',
       unit_type: 'piece',
-      availability: 'available',
       is_unlimited: false,
       is_premium: false
     });
@@ -222,15 +205,11 @@ const Inventory: React.FC = () => {
   const handleEditItem = (item: InventoryItem) => {
     setSelectedItem(item);
     setFormData({
-      product_code: item.product_code,
       name: item.name,
       description: item.description || '',
       category_id: item.category_id?.toString() || '',
       selling_price: item.selling_price.toString(),
-      purchase_price: item.purchase_price?.toString() || '',
-      quantity_in_stock: item.quantity_in_stock.toString(),
       unit_type: item.unit_type,
-      availability: item.availability,
       is_unlimited: item.is_unlimited,
       is_premium: item.is_premium
     });
@@ -261,15 +240,11 @@ const Inventory: React.FC = () => {
     const formDataToSend = new FormData();
     
     // Append all form data
-    formDataToSend.append('product_code', formData.product_code);
     formDataToSend.append('name', formData.name);
     formDataToSend.append('description', formData.description);
     formDataToSend.append('category_id', formData.category_id);
     formDataToSend.append('selling_price', formData.selling_price);
-    formDataToSend.append('purchase_price', formData.purchase_price || '');
-    formDataToSend.append('quantity_in_stock', formData.quantity_in_stock || '0');
     formDataToSend.append('unit_type', formData.unit_type);
-    formDataToSend.append('availability', formData.availability);
   formDataToSend.append('is_unlimited', formData.is_unlimited ? 'true' : 'false');
     formDataToSend.append('is_premium', formData.is_premium ? 'true' : 'false');
 
@@ -408,15 +383,13 @@ const Inventory: React.FC = () => {
 
   const filteredItems = items.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.product_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (item.product_code || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()));
     
     const matchesCategory = selectedCategory === 'all' || 
                            (item.category_id && item.category_id.toString() === selectedCategory);
     
-    const matchesAvailability = availabilityFilter === 'all' || item.availability === availabilityFilter;
-    
-    return matchesSearch && matchesCategory && matchesAvailability;
+    return matchesSearch && matchesCategory;
   });
 
   // Pagination calculations
@@ -453,7 +426,7 @@ const Inventory: React.FC = () => {
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedCategory, availabilityFilter]);
+  }, [searchTerm, selectedCategory]);
 
   const formatCurrency = (amount: number | null | undefined) => {
     if (amount === null || amount === undefined || isNaN(Number(amount))) {
@@ -462,47 +435,12 @@ const Inventory: React.FC = () => {
     return `₱${Number(amount).toFixed(2)}`;
   };
 
-  const getAvailabilityColor = (availability: string) => {
-    switch (availability) {
-      case 'available': return '#4CAF50';
-      case 'out_of_stock': return '#F44336';
-      case 'discontinued': return '#9E9E9E';
-      default: return '#9E9E9E';
-    }
-  };
-
-  const getStockStatus = (item: InventoryItem) => {
-    if (item.is_unlimited) return 'unlimited';
-    if (item.quantity_in_stock === 0) return 'out_of_stock';
-    if (item.quantity_in_stock <= 10) return 'low_stock';
-    return 'in_stock';
-  };
-
-  const getStockStatusColor = (status: string) => {
-    switch (status) {
-      case 'unlimited': return '#2196F3';
-      case 'in_stock': return '#4CAF50';
-      case 'low_stock': return '#FF9800';
-      case 'out_of_stock': return '#F44336';
-      default: return '#9E9E9E';
-    }
-  };
-
-  const getStockStatusText = (status: string) => {
-    switch (status) {
-      case 'unlimited': return 'Unlimited';
-      case 'in_stock': return 'In Stock';
-      case 'low_stock': return 'Low Stock';
-      case 'out_of_stock': return 'Out of Stock';
-      default: return 'Unknown';
-    }
-  };
 
   if (loading) {
     return (
       <div className="loading-container">
         <div className="loader" />
-        <p>Loading inventory</p>
+        <p>Loading menu items</p>
       </div>
     );
   }
@@ -510,7 +448,7 @@ const Inventory: React.FC = () => {
   return (
     <div className="inventory-page">
       <div className="page-header">
-        <h1>Inventory</h1>
+        <h1>Menu Items</h1>
         <div className="header-actions">
           <div className="search-bar">
             <Search size={20} />
@@ -533,16 +471,6 @@ const Inventory: React.FC = () => {
               </option>
             ))}
           </select>
-          <select 
-            value={availabilityFilter}
-            onChange={(e) => setAvailabilityFilter(e.target.value)}
-            className="filter-select"
-          >
-            <option value="all">All Status</option>
-            <option value="available">Available</option>
-            <option value="out_of_stock">Out of Stock</option>
-            <option value="discontinued">Discontinued</option>
-          </select>
           <button className="add-btn" onClick={() => setShowAddModal(true)}>
             <Plus size={20} />
             Add Product
@@ -563,39 +491,6 @@ const Inventory: React.FC = () => {
               <span className="stat-change">Last 7 days</span>
             </div>
           </div>
-          
-          <div className="stat-card">
-            <div className="stat-icon">
-              <DollarSign size={24} />
-            </div>
-            <div className="stat-content">
-              <h3>{formatCurrency(stats.total_value)}</h3>
-              <p>Total Revenue</p>
-              <span className="stat-change">From Sales</span>
-            </div>
-          </div>
-
-          <div className="stat-card warning">
-            <div className="stat-icon">
-              <AlertTriangle size={24} />
-            </div>
-            <div className="stat-content">
-              <h3>{stats.low_stock}</h3>
-              <p>Low Stock</p>
-              <span className="stat-change">≤10 items</span>
-            </div>
-          </div>
-
-          <div className="stat-card danger">
-            <div className="stat-icon">
-              <ShoppingCart size={24} />
-            </div>
-            <div className="stat-content">
-              <h3>{stats.out_of_stock}</h3>
-              <p>Out of Stock</p>
-              <span className="stat-change">0 items</span>
-            </div>
-          </div>
         </div>
       )}
 
@@ -611,17 +506,12 @@ const Inventory: React.FC = () => {
             <thead>
               <tr>
                 <th>Product</th>
-                <th>Buying Price</th>
-                <th>Quantity</th>
-                <th>Threshold Value</th>
-                <th>Expiry Date</th>
-                <th>Availability</th>
-                <th>Actions</th>
+                <th className="price">Price</th>
+                <th className="actions">Actions</th>
               </tr>
             </thead>
             <tbody>
               {currentItems.map((item) => {
-                const stockStatus = getStockStatus(item);
                 return (
                   <tr key={item.id}>
                     <td>
@@ -658,39 +548,13 @@ const Inventory: React.FC = () => {
                         </div>
                         <div className="product-details">
                           <h4>{item.name}</h4>
-                          <p>{item.product_code}</p>
+                          {/* Product code removed from list display */}
                           <span className="product-category">{item.category_name}</span>
                         </div>
                       </div>
                     </td>
-                    <td>{formatCurrency(item.selling_price)}</td>
-                    <td>
-                      <div className="quantity-info">
-                        <span className="quantity">
-                          {item.is_unlimited ? '∞' : `${item.quantity_in_stock} ${item.unit_type}`}
-                        </span>
-                        <span 
-                          className="stock-status"
-                          style={{ backgroundColor: getStockStatusColor(stockStatus) }}
-                        >
-                          {getStockStatusText(stockStatus)}
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      {item.is_unlimited ? '-' : `${Math.max(1, Math.floor(item.quantity_in_stock * 0.2))} ${item.unit_type}`}
-                    </td>
-                    <td>-</td>
-                    <td>
-                      <span 
-                        className="availability-badge"
-                        style={{ backgroundColor: getAvailabilityColor(item.availability) }}
-                      >
-                        {item.availability === 'available' ? 'In-stock' : 
-                         item.availability === 'out_of_stock' ? 'Out of stock' : 'Discontinued'}
-                      </span>
-                    </td>
-                    <td>
+                    <td className="price">{formatCurrency(item.selling_price)}</td>
+                    <td className="actions">
                       <div className="action-buttons">
                         <button 
                           className="action-btn view" 
@@ -907,20 +771,6 @@ const Inventory: React.FC = () => {
                 </div>
               </div>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="product_code">Product Code</label>
-                  <input
-                    type="text"
-                    id="product_code"
-                    name="product_code"
-                    value={formData.product_code}
-                    onChange={handleInputChange}
-                    placeholder="Enter product code"
-                    required
-                  />
-                </div>
-              </div>
 
               <div className="form-row">
                 <div className="form-group">
@@ -939,37 +789,6 @@ const Inventory: React.FC = () => {
                 </div>
               </div>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="purchase_price">Buying Price</label>
-                  <input
-                    type="number"
-                    id="purchase_price"
-                    name="purchase_price"
-                    value={formData.purchase_price}
-                    onChange={handleInputChange}
-                    placeholder="Enter buying price"
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="quantity_in_stock">Quantity in Stock</label>
-                  <input
-                    type="number"
-                    id="quantity_in_stock"
-                    name="quantity_in_stock"
-                    value={formData.quantity_in_stock}
-                    onChange={handleInputChange}
-                    placeholder="Enter quantity"
-                    min="0"
-                    step="1"
-                  />
-                </div>
-              </div>
 
               <div className="form-row">
                 <div className="form-group">
@@ -994,21 +813,6 @@ const Inventory: React.FC = () => {
                 </div>
               </div>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="availability">Availability</label>
-                  <select
-                    id="availability"
-                    name="availability"
-                    value={formData.availability}
-                    onChange={handleInputChange}
-                  >
-                    <option value="available">Available</option>
-                    <option value="out_of_stock">Out of Stock</option>
-                    <option value="discontinued">Discontinued</option>
-                  </select>
-                </div>
-              </div>
 
               <div className="form-row">
                 <div className="form-group checkbox-group">
@@ -1071,7 +875,6 @@ const Inventory: React.FC = () => {
                     </div>
                   )}
                 </div>
-
                 <div className="details-grid">
                   <div className="detail-item">
                     <label>Product Code:</label>
@@ -1291,20 +1094,6 @@ const Inventory: React.FC = () => {
                 </div>
               </div>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="edit-product_code">Product Code</label>
-                  <input
-                    type="text"
-                    id="edit-product_code"
-                    name="product_code"
-                    value={formData.product_code}
-                    onChange={handleInputChange}
-                    placeholder="Enter product code"
-                    required
-                  />
-                </div>
-              </div>
 
               <div className="form-row">
                 <div className="form-group">
@@ -1323,37 +1112,6 @@ const Inventory: React.FC = () => {
                 </div>
               </div>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="edit-purchase_price">Purchase Price</label>
-                  <input
-                    type="number"
-                    id="edit-purchase_price"
-                    name="purchase_price"
-                    value={formData.purchase_price}
-                    onChange={handleInputChange}
-                    placeholder="Enter purchase price"
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="edit-quantity_in_stock">Quantity in Stock</label>
-                  <input
-                    type="number"
-                    id="edit-quantity_in_stock"
-                    name="quantity_in_stock"
-                    value={formData.quantity_in_stock}
-                    onChange={handleInputChange}
-                    placeholder="Enter quantity"
-                    min="0"
-                    step="1"
-                  />
-                </div>
-              </div>
 
               <div className="form-row">
                 <div className="form-group">
@@ -1378,21 +1136,6 @@ const Inventory: React.FC = () => {
                 </div>
               </div>
 
-              <div className="form-row">
-                <div className="form-group">
-                  <label htmlFor="edit-availability">Availability</label>
-                  <select
-                    id="edit-availability"
-                    name="availability"
-                    value={formData.availability}
-                    onChange={handleInputChange}
-                  >
-                    <option value="available">Available</option>
-                    <option value="out_of_stock">Out of Stock</option>
-                    <option value="discontinued">Discontinued</option>
-                  </select>
-                </div>
-              </div>
 
               <div className="form-row">
                 <div className="form-group checkbox-group">

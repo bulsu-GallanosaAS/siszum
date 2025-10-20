@@ -73,7 +73,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const navItems = [
     { path: '/dashboard', icon: Home, label: 'Dashboard' },
     { path: '/reservations', icon: Calendar, label: 'Reservations' },
-    { path: '/inventory', icon: Package, label: 'Inventory' },
+    { path: '/inventory', icon: Package, label: 'Menu Items' },
+    { path: '/raw-inventory', icon: Package, label: 'Inventory' },
     { path: '/customers', icon: Users, label: 'Customers' },
     { path: '/transactions', icon: CreditCard, label: 'Transactions' },
     { path: '/refills', icon: RefreshCw, label: 'Refills' },

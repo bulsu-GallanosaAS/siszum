@@ -50,6 +50,25 @@
 			"type": "shell",
 			"command": "npm run build",
 			"group": "build"
+		},
+		{
+			"label": "Typecheck server (tsc)",
+			"type": "shell",
+			"command": "npm run build",
+			"group": "build"
+		},
+		{
+			"label": "Build server (tsc)",
+			"type": "shell",
+			"command": "npm run build",
+			"group": "build"
+		},
+		{
+			"label": "Build server (tsc) - one-off",
+			"type": "shell",
+			"command": "npm run build",
+			"args": [],
+			"group": "build"
 		}
 	]
 }

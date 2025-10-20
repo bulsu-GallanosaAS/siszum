@@ -2,7 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute, Layout } from './components';
-import { Login, Dashboard, Reservations, Inventory, Customers, Orders, POS, Timer, Transactions, Refills, Profile } from './pages';
+import { Login, Dashboard, Reservations, Inventory, RawInventory, Customers, Orders, POS, Timer, Transactions, Refills, Profile } from './pages';
 import './App.css';
 
 function App() {
@@ -43,6 +43,14 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <Inventory />
+                </Layout>
+              </ProtectedRoute>
+            } />
+
+            <Route path="/raw-inventory" element={
+              <ProtectedRoute>
+                <Layout>
+                  <RawInventory />
                 </Layout>
               </ProtectedRoute>
             } />

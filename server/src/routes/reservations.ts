@@ -43,7 +43,7 @@ router.get('/', authenticateToken, async (req: AuthenticatedRequest, res: expres
         rt.table_number
       FROM reservations r
       LEFT JOIN restaurant_tables rt ON r.table_id = rt.id
-      ORDER BY r.reservation_date DESC, r.reservation_time DESC
+      ORDER BY r.created_at DESC, r.id DESC
     `) as Reservation[];
 
     const response: ApiResponse<Reservation[]> = {

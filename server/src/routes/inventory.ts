@@ -141,19 +141,40 @@ router.post(
       const parsedIsPremium =
         is_premium === "true" || is_premium === true ? 1 : 0;
 
-      // Validate required fields
-      if (
-        !product_code ||
-        !name ||
-        !category_id ||
-        selling_price === undefined ||
-        selling_price === null
-      ) {
+      // Validate required fields (product_code optional - will be generated if not provided)
+      if (!name || !category_id || selling_price === undefined || selling_price === null) {
         return res.status(400).json({
           success: false,
-          message:
-            "Missing required fields: product_code, name, category_id, and selling_price are required",
+          message: "Missing required fields: name, category_id, and selling_price are required",
         });
+      }
+
+      // Generate unique product code if not provided
+      let finalProductCode: string = (product_code && String(product_code).trim()) || "";
+      if (!finalProductCode) {
+        const genCode = async (): Promise<string> => {
+          const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // avoid ambiguous chars
+          const rand = () => Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
+          return `SKU-${rand()}`;
+        };
+
+        let attempts = 0;
+        while (attempts < 5) {
+          attempts++;
+          const code = await genCode();
+          const [existing] = (await pool.execute(
+            `SELECT id FROM menu_items WHERE product_code = ? LIMIT 1`,
+            [code]
+          )) as [RowDataPacket[], any];
+          if (!existing || existing.length === 0) {
+            finalProductCode = code;
+            break;
+          }
+        }
+        if (!finalProductCode) {
+          // fallback using timestamp
+          finalProductCode = `SKU-${Date.now()}`;
+        }
       }
 
       let image_url = null;
@@ -201,7 +222,7 @@ router.post(
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
-          product_code,
+          finalProductCode,
           name,
           description || null,
           parseInt(category_id),
@@ -262,10 +283,15 @@ router.put(
       const parsedIsPremium =
         is_premium === "true" || is_premium === true ? 1 : 0;
 
-      // get current item to check for existing image
+      // get current item to check for existing image and to preserve non-updated fields
       const [currentItems] = (await pool.execute(
         `
-      SELECT image_public_id FROM menu_items WHERE id = ?
+      SELECT 
+        product_code, name as current_name, description as current_description, category_id as current_category_id,
+        selling_price as current_selling_price, purchase_price as current_purchase_price, purchase_value as current_purchase_value,
+        quantity_in_stock as current_quantity_in_stock, unit_type as current_unit_type, availability as current_availability,
+        is_unlimited as current_is_unlimited, is_premium as current_is_premium, image_public_id
+      FROM menu_items WHERE id = ?
     `,
         [id]
       )) as [RowDataPacket[], any];
@@ -277,7 +303,7 @@ router.put(
         });
       }
 
-      const currentItem = currentItems[0];
+  const currentItem = currentItems[0];
       let image_url = null;
       let image_public_id = currentItem.image_public_id;
 
@@ -306,25 +332,37 @@ router.put(
         }
       }
 
-      // Sanitize numeric values
-      const sanitizedQuantity =
-        quantity_in_stock === null ||
-        quantity_in_stock === undefined ||
-        quantity_in_stock === ""
-          ? 0
-          : parseInt(quantity_in_stock);
-      const sanitizedPurchasePrice =
-        purchase_price === null ||
-        purchase_price === undefined ||
-        purchase_price === ""
-          ? null
-          : parseFloat(purchase_price);
-      const sanitizedPurchaseValue =
-        purchase_value === null ||
-        purchase_value === undefined ||
-        purchase_value === ""
-          ? 0
-          : parseFloat(purchase_value);
+      // Prepare updated values; preserve current values when body field is undefined
+      const updatedProductCode =
+        product_code !== undefined && product_code !== ""
+          ? String(product_code)
+          : String(currentItem.product_code);
+      const updatedName = name !== undefined ? name : String(currentItem.current_name);
+      const updatedDescription = description !== undefined ? (description || null) : (currentItem.current_description || null);
+      const updatedCategoryId =
+        category_id !== undefined && category_id !== ""
+          ? parseInt(category_id)
+          : (currentItem.current_category_id !== null ? Number(currentItem.current_category_id) : null);
+      const updatedSellingPrice =
+        selling_price !== undefined && selling_price !== ""
+          ? parseFloat(selling_price)
+          : Number(currentItem.current_selling_price);
+      const updatedPurchasePrice =
+        purchase_price !== undefined
+          ? (purchase_price === "" ? null : parseFloat(purchase_price))
+          : (currentItem.current_purchase_price !== null ? Number(currentItem.current_purchase_price) : null);
+      const updatedQuantity =
+        quantity_in_stock !== undefined && quantity_in_stock !== ""
+          ? parseInt(quantity_in_stock)
+          : Number(currentItem.current_quantity_in_stock);
+      const updatedUnitType = unit_type !== undefined ? unit_type : String(currentItem.current_unit_type);
+      const updatedAvailability = availability !== undefined && availability !== ""
+        ? availability
+        : String(currentItem.current_availability);
+      const updatedPurchaseValue =
+        purchase_value !== undefined && purchase_value !== ""
+          ? parseFloat(purchase_value)
+          : (currentItem.current_purchase_value !== null ? Number(currentItem.current_purchase_value) : 0);
 
       let updateQuery = `
       UPDATE menu_items SET
@@ -335,16 +373,16 @@ router.put(
     `;
 
       const queryParams = [
-        product_code || null,
-        name || null,
-        description || null,
-        category_id ? parseInt(category_id) : null,
-        selling_price ? parseFloat(selling_price) : null,
-        sanitizedPurchasePrice,
-        sanitizedPurchaseValue,
-        sanitizedQuantity,
-        unit_type || null,
-        availability || null,
+        updatedProductCode,
+        updatedName,
+        updatedDescription,
+        updatedCategoryId,
+        updatedSellingPrice,
+        updatedPurchasePrice,
+        updatedPurchaseValue,
+        updatedQuantity,
+        updatedUnitType,
+        updatedAvailability,
         parsedIsUnlimited,
         parsedIsPremium,
       ];

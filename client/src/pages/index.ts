@@ -2,6 +2,7 @@ export { default as Dashboard } from './Dashboard';
 export { default as Login } from './Login';
 export { default as Reservations } from './Reservations';
 export { default as Inventory } from './Inventory';
+export { default as RawInventory } from './RawInventory';
 export { default as Customers } from './Customers';
 export { default as Orders } from './Orders';
 export { default as POS } from './POS';
